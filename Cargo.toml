@@ -7,8 +7,6 @@ edition = "2021"
 
 
 [dependencies]
-criterion = "0.4.0"
-
-[[bench]]
-name = "all_tests"
-harness = false
+num-format = "0.4.4"
+thread_runner = "0.2.0"
+tokio = { version = "1.27.0", features = ["full"] }

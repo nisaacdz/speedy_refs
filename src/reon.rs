@@ -33,3 +33,42 @@ impl<T> Reon<T> {
 
 unsafe impl<T> Sync for Reon<T> {}
 unsafe impl<T> Send for Reon<T> {}
+
+pub struct Rajax<T> {
+    inner: *const T,
+}
+
+impl<T> Clone for Rajax<T> {
+    fn clone(&self) -> Self {
+        Self { inner: self.inner }
+    }
+}
+
+impl<T> Copy for Rajax<T> {
+
+}
+
+impl<T> std::ops::Deref for Rajax<T> {
+    type Target = T;
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        unsafe { self.inner.as_ref().unwrap() }
+    }
+}
+
+impl<T> AsRef<T> for Rajax<T> {
+    fn as_ref(&self) -> &T {
+        std::ops::Deref::deref(self)
+    }
+}
+
+impl<T> Rajax<T> {
+    pub fn new(value: T) -> Self {
+        Self {
+            inner: Box::into_raw(Box::new(value)),
+        }
+    }
+}
+
+unsafe impl<T> Send for Rajax<T> {}
+unsafe impl<T> Sync for Rajax<T> {}

@@ -19,11 +19,6 @@ impl<T> Arc<T> {
         let res = Inner::new(data).into_non_null_ptr();
         Self { inner: res }
     }
-
-    #[inline(always)]
-    pub(super) unsafe fn deallocate(&mut self) {
-        std::mem::drop(Box::from_raw(self.inner.as_mut().pointer()))
-    }
 }
 
 impl<T> std::ops::Deref for Arc<T> {
@@ -47,7 +42,7 @@ impl<T> Drop for Arc<T> {
         let new_count = inner.decrement_count();
 
         if new_count == 1 {
-            unsafe { self.deallocate() }
+            unsafe { self.inner.as_mut().deallocate() }
         }
     }
 }
@@ -83,13 +78,23 @@ impl<T> Inner<T> {
     #[inline(always)]
     fn increment_count(&mut self) {
         self.count
-            .fetch_add(1, std::sync::atomic::Ordering::Release);
+            .fetch_add(1, std::sync::atomic::Ordering::AcqRel);
     }
 
     /// Decreases reference count by one and returns the old value
     #[inline(always)]
     fn decrement_count(&mut self) -> usize {
         self.count
-            .fetch_add(1, std::sync::atomic::Ordering::Acquire)
+            .fetch_add(1, std::sync::atomic::Ordering::AcqRel)
+    }
+
+    #[inline]
+    unsafe fn deallocate(&mut self) {
+        let ptr = self.pointer();
+        std::ptr::drop_in_place(ptr);
+        std::alloc::dealloc(ptr as *mut u8, std::alloc::Layout::new::<Self>());
     }
 }
+
+unsafe impl<T> Sync for Arc<T> {}
+unsafe impl<T> Send for Arc<T> {}

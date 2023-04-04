@@ -21,6 +21,7 @@ impl<T> Rc<T> {
 
 impl<T> std::ops::Deref for Rc<T> {
     type Target = T;
+    #[inline]
     fn deref(&self) -> &Self::Target {
         unsafe { self.inner.as_ref().value() }
     }
@@ -34,8 +35,10 @@ impl<T> AsRef<T> for Rc<T> {
 
 impl<T> Drop for Rc<T> {
     fn drop(&mut self) {
-        if unsafe { self.inner.as_mut().decrement_count() } == 0 {
-            unsafe { std::mem::drop(Box::from_raw(self.inner.as_mut().pointer())) }
+        unsafe {
+            if self.inner.as_mut().decrement_count() == 0 {
+                self.inner.as_mut().deallocate();
+            }
         }
     }
 }
@@ -60,20 +63,32 @@ impl<T> Inner<T> {
         &self.val
     }
 
-    #[inline(always)]
-    fn pointer(&mut self) -> *mut T {
-        (&mut self.val) as *mut T
+    #[inline]
+    fn pointer(&mut self) -> *mut Self {
+        self as *mut Self
     }
 
-    #[inline(always)]
+    #[inline]
     fn increment_count(&mut self) {
         self.count += 1;
     }
 
     /// Decreases reference count by one and returns the new count
-    #[inline(always)]
+    #[inline]
     fn decrement_count(&mut self) -> usize {
         self.count -= 1;
         self.count
+    }
+
+    /// Deallocating the memory associated with Inner.
+    /// This method is called when the inner's count reaches zero and is responsible for clearing 
+    /// Inner's memory along with the memory associated with the wrapped value val: T.
+    /// 
+    /// 
+    #[inline]
+    unsafe fn deallocate(&mut self) {
+        let ptr = self.pointer();
+        std::ptr::drop_in_place(ptr);
+        std::alloc::dealloc(ptr as *mut u8, std::alloc::Layout::new::<Self>());
     }
 }
