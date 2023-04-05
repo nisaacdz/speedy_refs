@@ -34,6 +34,7 @@ impl<T> Reon<T> {
 unsafe impl<T> Sync for Reon<T> {}
 unsafe impl<T> Send for Reon<T> {}
 
+#[derive(Copy)]
 pub struct Rajax<T> {
     inner: *const T,
 }
@@ -43,11 +44,6 @@ impl<T> Clone for Rajax<T> {
         Self { inner: self.inner }
     }
 }
-
-impl<T> Copy for Rajax<T> {
-
-}
-
 impl<T> std::ops::Deref for Rajax<T> {
     type Target = T;
     #[inline]

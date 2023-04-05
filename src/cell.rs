@@ -1,11 +1,16 @@
-use std::ops::{Deref, DerefMut};
-
 /// A container type that allows mutation of its contents even when it is
 /// externally immutable.
 #[repr(transparent)]
-#[derive(Clone, Copy)]
 pub struct Cell<T> {
     inner: *mut T,
+}
+
+impl<T> Clone for Cell<T> {
+    fn clone(&self) -> Self {
+        Self {
+            inner: self.inner.clone(),
+        }
+    }
 }
 
 impl<T> Cell<T> {
@@ -21,9 +26,10 @@ impl<T> Cell<T> {
     /// # Panics
     ///
     /// This function will panic if memory allocation fails.
+    #[inline]
     pub fn new(val: T) -> Self {
         Self {
-            inner: Box::into_raw(Box::new(val)),
+            inner: Box::leak(Box::new(val)) as *mut T,
         }
     }
 
@@ -77,12 +83,12 @@ impl<T> Cell<T> {
     pub unsafe fn take(&self) -> T {
         // It is safe to call `from_raw` here, as the `self.inner` was originally created
         // using `Box::into_raw`.
-        *Box::from_raw(self.inner)
+        std::ptr::read(self.inner)
     }
 
     /// Deallocates the memory of `self.inner`
     ///
-    /// This function first calls drop on T and then deallocates it
+    /// This function first calls drop on T and then deallocates the memory associated with it
     ///
     /// # Safety
     ///
@@ -93,141 +99,120 @@ impl<T> Cell<T> {
         std::ptr::drop_in_place(ptr);
         std::alloc::dealloc(ptr as *mut u8, std::alloc::Layout::new::<T>());
     }
-}
-
-
-/// # Borrow
-/// A simple struct for keeping track of reads and write to an owned value.
-/// 
-/// Rust rules allow a number of reads or a single write at a time. 
-/// 
-/// * `Borrow.read` stores the number of reads that are currently in use 
-/// while 
-/// * `Borrow.write` tells if there is currenly a reader of the value.
-/// 
-/// # Note
-/// Borrow is meant to be added as a field in your struct for added functionalities since it
-/// stores no value within it.
-/// 
-pub struct Borrow {
-    read: usize,
-    write: bool,
-}
-
-impl Borrow {
-    #[inline]
-    pub fn new() -> Self {
-        Self {
-            read: 0,
-            write: false,
-        }
-    }
-    /// Checks if the described value can be borrowed immutably
-    /// 
-    /// # Note
-    /// The value can only be borrowed immutably if there is currently no mutable references to it
-    /// 
+    /// Creates a new cell wrapping a clone of the inner value.
+    ///
     /// # Returns
-    /// * `true` - If immutable borrow is possible
-    /// * `false` - If immutable borrow is impossible
+    /// The new cloned value
     #[inline]
-    pub fn can_borrow(&self) -> bool {
-        self.write == false
+    pub fn clone_inner(&self) -> Cell<T>
+    where
+        T: Clone,
+    {
+        let clone = unsafe { self.inner.as_ref().unwrap() }.clone();
+        Cell::new(clone)
     }
 
-    /// Checks if the described value can be borrowed mutably
-    /// 
-    /// # Note
-    /// The value can only be borrowed mutably if there is currently no mutable or immutable references to it.
-    /// 
-    /// # Returns
-    /// * `true` - If mutable borrow is possible
-    /// * `false` - If mutable borrow is impossible
+    /// Replaces the wraped value with `val` and returns the original one
+    ///
+    /// # Safety
+    /// It is up to the caller to make sure that this method is not called while T is borrowed
     #[inline]
-    pub fn can_borrow_mut(&self) -> bool {
-        self.write == false && self.read == 0
-    }
-
-    /// Marks a the start of a read by a new reader
-    /// 
-    /// It does this by increases the count of the `read` field
-    /// 
-    #[inline]
-    pub fn read(&mut self) {
-        self.read += 1;
-    }
-
-    /// Marks the end of a read by an existing reader
-    /// 
-    /// It does this by decrementing the count of the `read` field
-    /// 
-    #[inline]
-    pub fn unread(&mut self) {
-        self.read -= 1;
-    }
-
-    /// Marks the start of a write
-    /// 
-    /// Sets the `write` field to true
-    #[inline]
-    pub fn write(&mut self) {
-        self.write = true;
-    }
-
-    /// Marks the end of a write
-    /// 
-    /// Sets the `write` field to false
-    #[inline]
-    pub fn unwrite(&mut self) {
-        self.write = false;
+    pub unsafe fn replace(&self, mut val: T) -> T {
+        std::mem::swap(unsafe { self.as_mut() }, &mut val);
+        val
     }
 }
 
 /// # BorrowFlag
 /// For `immutably` and `safely` tracking the reads and writes to an owned value.
-/// 
-/// It makes use of its inner value Cell<Borrow>.
-/// It basically makes unsafe calls to the value inside of inner
+///
+/// Rust rules allow a number of reads or a single write at a time.
+///
+/// # Fields
+/// * `inner: Cell<(usize, bool)>`
+/// * `usize` stores the number of reads that are currently in use while
+/// * `bool` tells if there is currenly a reader of the value.
+///
+/// # Note
+/// BorrowFlag is meant to be added as a field in your struct for added borrow checker functionalities since it
+/// doesn't store the actual value described
+///
 #[repr(transparent)]
 pub struct BorrowFlag {
-    inner: Cell<Borrow>,
+    inner: Cell<(usize, bool)>,
 }
 
 impl BorrowFlag {
+    /// Initiallizes a new BorrowFlag with 0 current reads and no current writer
     #[inline]
     pub fn new() -> Self {
         Self {
-            inner: Cell::new(Borrow::new()),
+            inner: Cell::new((0, false)),
         }
     }
 
+    /// Checks if the described value can be borrowed immutably
+    ///
+    /// # Note
+    /// The value can only be borrowed immutably if there is currently no mutable references to it
+    ///
+    /// # Returns
+    /// * `true` - If immutable borrow is possible
+    /// * `false` - If immutable borrow is impossible
     #[inline]
     pub fn can_borrow(&self) -> bool {
-        unsafe { self.inner.as_ref().can_borrow() }
+        unsafe { self.inner.as_ref().1 == false }
     }
 
+    /// Checks if the described value can be borrowed mutably
+    ///
+    /// # Note
+    /// The value can only be borrowed mutably if there is currently no mutable or immutable references to it.
+    ///
+    /// # Returns
+    /// * `true` - If mutable borrow is possible
+    /// * `false` - If mutable borrow is impossible
     #[inline]
     pub fn can_borrow_mut(&self) -> bool {
-        unsafe { self.inner.as_ref().can_borrow_mut() }
+        let val = unsafe { self.inner.as_ref() };
+        val.0 == 0 && val.1 == false
     }
+
+    /// Checks if the described value can be taken ownership of
+    ///
+    /// # Note
+    /// The value can only be owned if there is currently no mutable or immutable references to it.
+    ///
+    /// # Returns
+    /// * `true` - If taking ownership is possible
+    /// * `false` - If taking ownership is impossible
+
+    #[inline]
+    pub fn can_own(&self) -> bool {
+        self.can_borrow_mut()
+    }
+    /// Marks a the start of a new read by increasing the count of the internal `readers`
+    ///
     #[inline]
     pub fn read(&self) {
-        unsafe { self.inner.as_mut().read() }
+        unsafe { self.inner.as_mut() }.0 += 1;
     }
-
+    /// Marks the end of an ongoing read by decrementing the count of the internal `readers`
+    ///
     #[inline]
     pub fn unread(&self) {
-        unsafe { self.inner.as_mut().unread() }
+        unsafe { self.inner.as_mut() }.0 -= 1;
     }
 
+    /// Marks the start of a write by setting the internal `write` field to true
     #[inline]
     pub fn write(&self) {
-        unsafe { self.inner.as_mut().write() }
+        unsafe { self.inner.as_mut() }.1 = true;
     }
-
+    /// Marks the end of a write session by setting the internal `write` field to false
     #[inline]
     pub fn unwrite(&self) {
-        unsafe { self.inner.as_mut().unwrite() }
+        unsafe { self.inner.as_mut() }.1 = false;
     }
 }
 
@@ -237,17 +222,19 @@ impl Drop for BorrowFlag {
     }
 }
 
+/// An immutable borrow of RefCell
 pub struct Ref<'a, T> {
     cell: &'a RefCell<T>,
 }
 
+/// Dropping a Ref object
 impl<'a, T> Drop for Ref<'a, T> {
     fn drop(&mut self) {
         self.cell.flag.unread()
     }
 }
 
-impl<'a, T> Deref for Ref<'a, T> {
+impl<'a, T> std::ops::Deref for Ref<'a, T> {
     type Target = T;
     #[inline]
     fn deref(&self) -> &Self::Target {
@@ -259,7 +246,7 @@ impl<'a, T> Deref for Ref<'a, T> {
 
 impl<'a, T> AsRef<T> for Ref<'a, T> {
     fn as_ref(&self) -> &T {
-        self.deref()
+        std::ops::Deref::deref(self)
     }
 }
 
@@ -267,13 +254,25 @@ pub struct RefMut<'a, T> {
     cell: &'a RefCell<T>,
 }
 
+impl<'a, T> RefMut<'a, T> {
+    #[inline]
+    pub fn new(val: &'a RefCell<T>) -> Self {
+        Self { cell: val }
+    }
+    #[inline]
+    pub fn replace(&mut self, val: T) -> T {
+        unsafe { self.cell.inner.replace(val) }
+    }
+}
+
 impl<'a, T> Drop for RefMut<'a, T> {
+    #[inline]
     fn drop(&mut self) {
         self.cell.flag.unwrite()
     }
 }
 
-impl<'a, T> Deref for RefMut<'a, T> {
+impl<'a, T> std::ops::Deref for RefMut<'a, T> {
     type Target = T;
     #[inline]
     fn deref(&self) -> &Self::Target {
@@ -285,11 +284,11 @@ impl<'a, T> Deref for RefMut<'a, T> {
 
 impl<'a, T> AsRef<T> for RefMut<'a, T> {
     fn as_ref(&self) -> &T {
-        self.deref()
+        std::ops::Deref::deref(self)
     }
 }
 
-impl<'a, T> DerefMut for RefMut<'a, T> {
+impl<'a, T> std::ops::DerefMut for RefMut<'a, T> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         unsafe { self.cell.inner.as_mut() }
@@ -298,9 +297,61 @@ impl<'a, T> DerefMut for RefMut<'a, T> {
 
 impl<'a, T> AsMut<T> for RefMut<'a, T> {
     fn as_mut(&mut self) -> &mut T {
-        self.deref_mut()
+        std::ops::DerefMut::deref_mut(self)
     }
 }
+
+/// # RefCell
+/// A RefCell is a mutable memory location with dynamically checked borrow rules.
+///
+/// It is similar to `Cell<T>`, but provides the ability to perform mutable borrows and immutable borrows safely
+/// at runtime by runtime enforcement of the borrow-checker rules
+///
+/// The `RefCell` stores a value of type `T`, and allows mutable access through the `borrow_mut` method,
+/// which returns a `RefMut<T>` type. Immutable access is granted through the `borrow` method, which
+/// returns a `Ref<T>` type.
+///
+/// # BorrowFlag
+/// Borrow rules are enforced at runtime, with a `BorrowFlag` type that keeps track of the number of active
+/// borrows. If an attempt is made to borrow a value mutably while it is already borrowed (either `mutably` or
+/// `immutably`), then a panic will occur. If an attempt is made to borrow a value `immutably` while it is already
+/// `mutably` borrowed, then a panic will also occur.
+///
+/// # Panics
+/// If the borrow rules are violated at runtime
+///
+/// # Others
+/// The `take` method can be used to extract the value from the RefCell and invalidate the borrow flag.
+///
+/// The `Clone` trait is implemented for `RefCell<T>` only if `T` also implements `Clone`.
+///
+/// # Examples
+///
+/// ```
+/// use speedy_refs::RefCell;
+/// let x = RefCell::new(42);
+/// // borrowing immutably
+/// let y = x.borrow();
+/// assert_eq!(*y, 42);
+/// // attempting to borrow mutably while already borrowed immutably
+/// // will panic at runtime ///
+/// // let z = x.borrow_mut();
+/// // uncomment to see the panic ///
+///
+/// // borrowing mutably
+/// std::mem::drop(y);
+/// let mut z = x.borrow_mut();
+/// *z += 1;
+/// assert_eq!(*z, 43);
+/// // attempting to borrow immutably while already borrowed mutably will panic at runtime
+/// /// // let y = x.borrow();
+/// // uncomment to see the panic
+///
+/// // extracting the value from the RefCell
+/// std::mem::drop(z);
+/// let val = x.take();
+/// assert_eq!(val, 43);
+/// ```
 
 pub struct RefCell<T> {
     inner: Cell<T>,
@@ -315,12 +366,16 @@ impl<T> RefCell<T> {
         }
     }
 
+    pub fn from_parts(val: Cell<T>, flag: BorrowFlag) -> Self {
+        Self { inner: val, flag }
+    }
+
     pub fn borrow<'a>(&'a self) -> Ref<'a, T> {
         if self.flag.can_borrow() {
             self.flag.read();
             Ref { cell: self }
         } else {
-            panic!("T cannot be borrowed immutably while T is already borrowed mutably")
+            panic!("T cannot be borrowed immutably while T is borrowed mutably")
         }
     }
 
@@ -329,17 +384,35 @@ impl<T> RefCell<T> {
             self.flag.write();
             RefMut { cell: self }
         } else {
-            panic!("T cannot be borrowed mutably while T is already borrowed mutably or immutably")
+            panic!("T cannot be borrowed mutably while T is borrowed mutably or immutably")
         }
     }
 
     pub fn take(self) -> T {
-        unsafe { self.inner.take() }
+        if self.flag.can_own() {
+            unsafe { self.inner.take() }
+        } else {
+            panic!("T cannot be moved while T is borrowed mutably or immutably")
+        }
+    }
+    /// Replaces the wrapped value with a new one computed from f, returning the old value, without deinitializing either one.
+    ///
+    /// # Panics
+    ///Panics if the value is currently borrowed.
+    pub fn replace(&self, val: T) -> T {
+        self.borrow_mut().replace(val)
     }
 }
 
 impl<T> Drop for RefCell<T> {
     fn drop(&mut self) {
         unsafe { self.inner.deallocate() }
+    }
+}
+
+impl<T: Clone> Clone for RefCell<T> {
+    fn clone(&self) -> Self {
+        let clone = self.inner.clone_inner();
+        RefCell::from_parts(clone, BorrowFlag::new())
     }
 }
