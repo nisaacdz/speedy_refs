@@ -1,6 +1,6 @@
 use speedy_refs::bench::MyBencher;
 
-pub const LEN: usize = 1_000_000;
+pub const LEN: usize = 90_000_000;
 
 fn main() {
     start()

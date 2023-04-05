@@ -10,8 +10,8 @@ Contains faster and lighter alternatives to std smart pointers.
 - **RefCell** - Faster and lighter alternative to the std RefCell
 - **Arc** - Lighter alternative the std arc with equivalent performance
 - **Cell** - Extremely fast and smart pointer for mutable access from an immutable context
-- **Reon** - Read only smart pointer based on the Arc and implements `Sync` and `Send`
-- **Rajax** - A more bare-metal implementation of `Reon` and contains static data
+- **Reon** - Read only smart pointer based on the `Arc` and implements `Sync` and `Send`
+- **Rajax** - A more bare-metal implementation of `Reon` and contains static data that should not be used with any type of interior mutability
 
 # DEPENDENCIES
 
