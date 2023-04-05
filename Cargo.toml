@@ -1,7 +1,7 @@
 [package]
 name = "speedy_refs"
 version = "0.1.0"
-description = "Simpler, Faster alternatives to std smart pointers plus much more"
+description = "Simpler, Faster, and lighter alternatives to std smart pointers and much more"
 edition = "2021"
 license = "MIT"
 
@@ -10,5 +10,3 @@ license = "MIT"
 
 [dependencies]
 num-format = "0.4.4"
-thread_runner = "0.2.0"
-tokio = { version = "1.27.0", features = ["full"] }

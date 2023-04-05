@@ -61,7 +61,7 @@ impl<T> AsRef<T> for Rajax<T> {
 impl<T> Rajax<T> {
     pub fn new(value: T) -> Self {
         Self {
-            inner: Box::into_raw(Box::new(value)),
+            inner: Box::leak(Box::new(value)) as *const T,
         }
     }
 }
