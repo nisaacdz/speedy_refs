@@ -1,26 +1,3 @@
-#[repr(transparent)]
-pub struct Cell<T> {
-    value: T,
-}
-
-impl<T> Cell<T> {
-    pub fn new(value: T) -> Cell<T> {
-        Cell { value }
-    }
-
-    pub fn ptr(&self) -> *mut T {
-        self as *const Self as *const T as *mut T
-    }
-
-    pub fn update(&self, value: T) {
-        unsafe { std::ptr::write(self.ptr(), value) }
-    }
-
-    pub fn get(&self) -> &T {
-        &self.value
-    }
-}
-
 /// A container type that allows mutation of its contents even when it is
 /// externally immutable.
 #[repr(transparent)]
@@ -162,7 +139,7 @@ impl<T> HeapCell<T> {
 ///
 #[repr(transparent)]
 pub struct BorrowFlag {
-    inner: Cell<isize>,
+    inner: std::cell::UnsafeCell<isize>,
 }
 
 impl BorrowFlag {
@@ -170,7 +147,7 @@ impl BorrowFlag {
     #[inline]
     pub fn new() -> Self {
         Self {
-            inner: Cell::new(0),
+            inner: std::cell::UnsafeCell::new(0),
         }
     }
 
@@ -184,7 +161,7 @@ impl BorrowFlag {
     /// * `false` - If immutable borrow is impossible
     #[inline]
     pub fn can_borrow(&self) -> bool {
-        *self.inner.get() >= 0
+        unsafe { *self.inner.get() >= 0 }
     }
 
     /// Checks if the described value can be borrowed mutably
@@ -197,7 +174,7 @@ impl BorrowFlag {
     /// * `false` - If mutable borrow is impossible
     #[inline]
     pub fn can_borrow_mut(&self) -> bool {
-        *self.inner.get() == 0
+        unsafe { *self.inner.get() == 0 }
     }
 
     /// Checks if the described value can be taken ownership of
@@ -217,24 +194,32 @@ impl BorrowFlag {
     ///
     #[inline]
     pub fn borrow(&self) {
-        self.inner.update(self.inner.value + 1);
+        unsafe {
+            std::ptr::write(self.inner.get(), *self.inner.get() + 1)
+        }
     }
     /// Marks the end of an ongoing read by decrementing the count of the internal `readers`
     ///
     #[inline]
     pub fn drop_borrow(&self) {
-        self.inner.update(self.inner.value - 1);
+        unsafe {
+            std::ptr::write(self.inner.get(), *self.inner.get() - 1)
+        }
     }
 
     /// Marks the start of a write by setting the internal `write` field to true
     #[inline]
     pub fn borrow_mut(&self) {
-        self.inner.update(-1);
+        unsafe {
+            std::ptr::write(self.inner.get(), -1)
+        }
     }
     /// Marks the end of a write session by setting the internal `write` field to false
     #[inline]
     pub fn drop_borrow_mut(&self) {
-        self.inner.update(0);
+        unsafe {
+            std::ptr::write(self.inner.get(), 0)
+        }
     }
 }
 

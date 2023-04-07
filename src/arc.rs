@@ -62,7 +62,7 @@ impl<T> Inner<T> {
 
     #[inline(always)]
     fn into_non_null_ptr(self) -> std::ptr::NonNull<Self> {
-        std::ptr::NonNull::new(Box::into_raw(Box::new(self))).unwrap()
+        std::ptr::NonNull::new(Box::leak(Box::new(self)) as *mut Inner<T>).unwrap()
     }
 
     #[inline(always)]
@@ -96,5 +96,5 @@ impl<T> Inner<T> {
     }
 }
 
-unsafe impl<T> Sync for Arc<T> {}
-unsafe impl<T> Send for Arc<T> {}
+unsafe impl<T: Sync + Send> Sync for Arc<T> {}
+unsafe impl<T: Sync + Send> Send for Arc<T> {}
