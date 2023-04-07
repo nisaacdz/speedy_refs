@@ -11,12 +11,12 @@ impl MyBencher {
         let r2 = self.measure(&f).to_formatted_string(&Locale::en);
         let r3 = self.measure(&f).to_formatted_string(&Locale::en);
 
-        println!("Results for {}\n[{}ms, {}ms, {}ms]\n", alias, r1, r2, r3);
+        println!("Results for {}\n[{}ns, {}ns, {}ns]\n", alias, r1, r2, r3);
     }
     fn measure(&self, f: &impl Fn()) -> u128 {
         let clock = std::time::Instant::now();
         self.call(f);
-        clock.elapsed().as_millis()
+        clock.elapsed().as_nanos()
     }
     #[inline]
     fn call(&self, f: impl Fn()) {

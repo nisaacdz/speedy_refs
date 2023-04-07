@@ -1,15 +1,9 @@
 use speedy_refs::bench::MyBencher;
 
-pub const LEN: usize = 90_000_000;
+pub const LEN: usize = 9_000_000_000;
 
 fn main() {
     start()
-}
-
-fn clone<T: Clone>(mut val: T) {
-    for _ in 0..LEN {
-        val = val.clone();
-    }
 }
 
 fn mine() {
@@ -36,11 +30,8 @@ fn std() {
 }
 
 pub fn start() {
-    let bcher = MyBencher::new(3);
-    println!("Refcells Bench");
+    let bcher = MyBencher::new(2);
+    println!("Refcells Bench\n");
     bcher.bench("MINE", || mine());
     bcher.bench("STD", || std());
-    println!("\nRc's Bench");
-    bcher.bench("MINE", || clone(speedy_refs::Rc::new(5)));
-    bcher.bench("STD", || clone(std::rc::Rc::new(5)));
 }

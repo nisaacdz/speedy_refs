@@ -1,5 +1,5 @@
 pub struct Rc<T> {
-    inner: super::Cell<Inner<T>>,
+    inner: super::HeapCell<Inner<T>>,
 }
 
 impl<T> Clone for Rc<T> {
@@ -15,7 +15,7 @@ impl<T> Clone for Rc<T> {
 
 impl<T> Rc<T> {
     pub fn new(data: T) -> Self {
-        let res = super::Cell::new(Inner::new(data));
+        let res = super::HeapCell::new(Inner::new(data));
         Self { inner: res }
     }
 }

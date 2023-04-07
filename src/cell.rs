@@ -1,11 +1,34 @@
+#[repr(transparent)]
+pub struct Cell<T> {
+    value: T,
+}
+
+impl<T> Cell<T> {
+    pub fn new(value: T) -> Cell<T> {
+        Cell { value }
+    }
+
+    pub fn ptr(&self) -> *mut T {
+        self as *const Self as *const T as *mut T
+    }
+
+    pub fn update(&self, value: T) {
+        unsafe { std::ptr::write(self.ptr(), value) }
+    }
+
+    pub fn get(&self) -> &T {
+        &self.value
+    }
+}
+
 /// A container type that allows mutation of its contents even when it is
 /// externally immutable.
 #[repr(transparent)]
-pub struct Cell<T> {
+pub struct HeapCell<T> {
     inner: *mut T,
 }
 
-impl<T> Clone for Cell<T> {
+impl<T> Clone for HeapCell<T> {
     fn clone(&self) -> Self {
         Self {
             inner: self.inner.clone(),
@@ -13,14 +36,14 @@ impl<T> Clone for Cell<T> {
     }
 }
 
-impl<T> Cell<T> {
-    /// Creates a new `Cell` containing the given value.
+impl<T> HeapCell<T> {
+    /// Creates a new `HeapCell` containing the given value.
     ///
     /// # Safety
     ///
     /// This function takes ownership of the given value and stores it behind a
     /// raw pointer. It is the responsibility of the caller to ensure that the
-    /// value passed in is valid and the Cell is not used after the value has been
+    /// value passed in is valid and the HeapCell is not used after the value has been
     /// dropped or moved.
     ///
     /// # Panics
@@ -63,22 +86,22 @@ impl<T> Cell<T> {
         &*self.inner
     }
 
-    /// Takes ownership of the value stored in the `Cell`.
+    /// Takes ownership of the value stored in the `HeapCell`.
     ///
     /// # Safety
     ///
     /// This function is marked as unsafe because it assumes ownership of the value
-    /// behind the raw pointer held by the `Cell`. The caller must ensure that it is
+    /// behind the raw pointer held by the `HeapCell`. The caller must ensure that it is
     /// safe to take ownership of the value.
     ///
     /// # Returns
     ///
-    /// This function returns the owned value of type `T` that was stored in the `Cell`.
+    /// This function returns the owned value of type `T` that was stored in the `HeapCell`.
     ///
     /// # Note
     ///
-    /// The caller must ensure that the `Cell` is not used after calling `take`,
-    /// as the `Cell` will be left in an invalid state.
+    /// The caller must ensure that the `HeapCell` is not used after calling `take`,
+    /// as the `HeapCell` will be left in an invalid state.
     ///
     pub unsafe fn take(&self) -> T {
         // It is safe to call `from_raw` here, as the `self.inner` was originally created
@@ -92,7 +115,7 @@ impl<T> Cell<T> {
     ///
     /// # Safety
     ///
-    /// The caller must ensure that the `Cell` is not used after calling `deallocate` as
+    /// The caller must ensure that the `HeapCell` is not used after calling `deallocate` as
     /// `self.inner` will then point to an invalid memory.
     pub unsafe fn deallocate(&self) {
         let ptr = self.inner;
@@ -104,12 +127,12 @@ impl<T> Cell<T> {
     /// # Returns
     /// The new cloned value
     #[inline]
-    pub fn clone_inner(&self) -> Cell<T>
+    pub fn clone_inner(&self) -> HeapCell<T>
     where
         T: Clone,
     {
         let clone = unsafe { self.inner.as_ref().unwrap() }.clone();
-        Cell::new(clone)
+        HeapCell::new(clone)
     }
 
     /// Replaces the wraped value with `val` and returns the original one
@@ -129,7 +152,7 @@ impl<T> Cell<T> {
 /// Rust rules allow a number of reads or a single write at a time.
 ///
 /// # Fields
-/// * `inner: Cell<(usize, bool)>`
+/// * `inner: HeapCell<(usize, bool)>`
 /// * `usize` stores the number of reads that are currently in use while
 /// * `bool` tells if there is currenly a reader of the value.
 ///
@@ -139,7 +162,7 @@ impl<T> Cell<T> {
 ///
 #[repr(transparent)]
 pub struct BorrowFlag {
-    inner: Cell<(usize, bool)>,
+    inner: Cell<isize>,
 }
 
 impl BorrowFlag {
@@ -147,7 +170,7 @@ impl BorrowFlag {
     #[inline]
     pub fn new() -> Self {
         Self {
-            inner: Cell::new((0, false)),
+            inner: Cell::new(0),
         }
     }
 
@@ -161,7 +184,7 @@ impl BorrowFlag {
     /// * `false` - If immutable borrow is impossible
     #[inline]
     pub fn can_borrow(&self) -> bool {
-        unsafe { self.inner.as_ref().1 == false }
+        *self.inner.get() >= 0
     }
 
     /// Checks if the described value can be borrowed mutably
@@ -174,8 +197,7 @@ impl BorrowFlag {
     /// * `false` - If mutable borrow is impossible
     #[inline]
     pub fn can_borrow_mut(&self) -> bool {
-        let val = unsafe { self.inner.as_ref() };
-        val.0 == 0 && val.1 == false
+        *self.inner.get() == 0
     }
 
     /// Checks if the described value can be taken ownership of
@@ -194,31 +216,25 @@ impl BorrowFlag {
     /// Marks a the start of a new read by increasing the count of the internal `readers`
     ///
     #[inline]
-    pub fn read(&self) {
-        unsafe { self.inner.as_mut() }.0 += 1;
+    pub fn borrow(&self) {
+        self.inner.update(self.inner.value + 1);
     }
     /// Marks the end of an ongoing read by decrementing the count of the internal `readers`
     ///
     #[inline]
-    pub fn unread(&self) {
-        unsafe { self.inner.as_mut() }.0 -= 1;
+    pub fn drop_borrow(&self) {
+        self.inner.update(self.inner.value - 1);
     }
 
     /// Marks the start of a write by setting the internal `write` field to true
     #[inline]
-    pub fn write(&self) {
-        unsafe { self.inner.as_mut() }.1 = true;
+    pub fn borrow_mut(&self) {
+        self.inner.update(-1);
     }
     /// Marks the end of a write session by setting the internal `write` field to false
     #[inline]
-    pub fn unwrite(&self) {
-        unsafe { self.inner.as_mut() }.1 = false;
-    }
-}
-
-impl Drop for BorrowFlag {
-    fn drop(&mut self) {
-        unsafe { self.inner.deallocate() }
+    pub fn drop_borrow_mut(&self) {
+        self.inner.update(0);
     }
 }
 
@@ -230,7 +246,7 @@ pub struct Ref<'a, T> {
 /// Dropping a Ref object
 impl<'a, T> Drop for Ref<'a, T> {
     fn drop(&mut self) {
-        self.cell.flag.unread()
+        self.cell.flag.drop_borrow()
     }
 }
 
@@ -268,7 +284,7 @@ impl<'a, T> RefMut<'a, T> {
 impl<'a, T> Drop for RefMut<'a, T> {
     #[inline]
     fn drop(&mut self) {
-        self.cell.flag.unwrite()
+        self.cell.flag.drop_borrow_mut()
     }
 }
 
@@ -304,7 +320,7 @@ impl<'a, T> AsMut<T> for RefMut<'a, T> {
 /// # RefCell
 /// A RefCell is a mutable memory location with dynamically checked borrow rules.
 ///
-/// It is similar to `Cell<T>`, but provides the ability to perform mutable borrows and immutable borrows safely
+/// It is similar to `HeapCell<T>`, but provides the ability to perform mutable borrows and immutable borrows safely
 /// at runtime by runtime enforcement of the borrow-checker rules
 ///
 /// The `RefCell` stores a value of type `T`, and allows mutable access through the `borrow_mut` method,
@@ -354,25 +370,25 @@ impl<'a, T> AsMut<T> for RefMut<'a, T> {
 /// ```
 
 pub struct RefCell<T> {
-    inner: Cell<T>,
+    inner: HeapCell<T>,
     flag: BorrowFlag,
 }
 
 impl<T> RefCell<T> {
     pub fn new(val: T) -> Self {
         Self {
-            inner: Cell::new(val),
+            inner: HeapCell::new(val),
             flag: BorrowFlag::new(),
         }
     }
 
-    pub fn from_parts(val: Cell<T>, flag: BorrowFlag) -> Self {
+    pub fn from_parts(val: HeapCell<T>, flag: BorrowFlag) -> Self {
         Self { inner: val, flag }
     }
 
     pub fn borrow<'a>(&'a self) -> Ref<'a, T> {
         if self.flag.can_borrow() {
-            self.flag.read();
+            self.flag.borrow();
             Ref { cell: self }
         } else {
             panic!("T cannot be borrowed immutably while T is borrowed mutably")
@@ -381,7 +397,7 @@ impl<T> RefCell<T> {
 
     pub fn borrow_mut<'a>(&'a self) -> RefMut<'a, T> {
         if self.flag.can_borrow_mut() {
-            self.flag.write();
+            self.flag.borrow_mut();
             RefMut { cell: self }
         } else {
             panic!("T cannot be borrowed mutably while T is borrowed mutably or immutably")
