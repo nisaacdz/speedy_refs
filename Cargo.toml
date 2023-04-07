@@ -1,7 +1,7 @@
 [package]
 name = "speedy_refs"
-version = "0.2.0"
-description = "A collection of simple, Fast, and light smart pointers for rust"
+version = "0.1.0"
+description = "Simpler, Faster, and lighter alternatives to std smart pointers and much more"
 edition = "2021"
 license = "MIT"
 

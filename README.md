@@ -1,8 +1,8 @@
 # SPEEDY_REFS
 
-A collection of simple, Fast, and light smart pointers for rust.
+A collection of simple, Fast, and light smart pointers for rust.4
 
-Contains faster and lighter alternatives to std smart pointers and much more.
+Contains faster and lighter alternatives to std smart pointers.
 
 # FEATURES
 
