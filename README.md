@@ -12,6 +12,11 @@ Contains faster and lighter alternatives to std smart pointers and much more.
 - **Cell** - Extremely fast and smart pointer for mutable access from an immutable context
 - **Reon** - Read only static pointer based on the `Arc` and implements `Sync` and `Send`
 
+# Upcoming
+- **Atomic** - Uses atomic operations to control mutable and immutable access to any type for multithread syncing.
+- **Hazard** - A hazard pointer implementation.
+
+
 # DEPENDENCIES
 
 
