@@ -1,6 +1,39 @@
-/// A container type that allows mutation of its contents even when it is
-/// externally immutable.
-#[repr(transparent)]
+/// # HeapCell
+///
+/// `HeapCell` is a container type that allows mutation of its contents even when it is
+/// externally immutable by storing the type it points to on the heap and keeping a mutable pointer to it.
+/// 
+/// # Like UnsafeCell
+/// It is similar to `UnsafeCell` in terms of functionality but provides the following differences:
+/// - It moves the data onto the heap and stores a pointer to it.
+/// - It never drops or deallocates the data it wraps until `drop()` and `dealloc()` methods are explicitly called or `drop_n_dealloc()` is called.
+///
+/// # Uses
+/// `HeapCell` can be accessed mutably through the `as_mut` method and immutably through the
+/// `as_ref` method without requiring the container to be mutable.
+///
+/// # Examples
+///
+/// ```
+/// use speedy_refs::HeapCell;
+///
+/// let cell = HeapCell::new(42);
+/// assert_eq!(unsafe { *cell.as_ref() }, 42);
+///
+/// unsafe {
+///     *cell.as_mut() = 7;
+///     assert_eq!(*cell.as_ref(), 7);
+///
+///     let val = cell.take();
+///     assert_eq!(val, 7);
+///
+///     cell.replace(42);
+///     assert_eq!(*cell.as_ref(), 42);
+///
+///     cell.drop_n_dealloc();
+/// }
+/// ```
+
 pub struct HeapCell<T> {
     inner: *mut T,
 }
@@ -86,7 +119,7 @@ impl<T> HeapCell<T> {
         std::ptr::read(self.inner)
     }
 
-    /// Deallocates the memory of `self.inner`
+    /// Drops the content and deallocates its memory.
     ///
     /// This function first calls drop on T and then deallocates the memory associated with it
     ///
@@ -94,7 +127,8 @@ impl<T> HeapCell<T> {
     ///
     /// The caller must ensure that the `HeapCell` is not used after calling `deallocate` as
     /// `self.inner` will then point to an invalid memory.
-    pub unsafe fn deallocate(&self) {
+
+    pub unsafe fn drop_n_dealloc(&self) {
         let ptr = self.inner;
         std::ptr::drop_in_place(ptr);
         std::alloc::dealloc(ptr as *mut u8, std::alloc::Layout::new::<T>());
@@ -120,6 +154,16 @@ impl<T> HeapCell<T> {
     pub unsafe fn replace(&self, mut val: T) -> T {
         std::mem::swap(unsafe { self.as_mut() }, &mut val);
         val
+    }
+
+    // Calls drop on T, if it implements Drop
+    pub unsafe fn drop(&self) {
+        std::ptr::drop_in_place(self.inner);
+    }
+
+    // Deallocates the momory associated with T
+    pub unsafe fn dealloc(&self) {
+        std::alloc::dealloc(self.inner as *mut u8, std::alloc::Layout::new::<T>());
     }
 }
 
@@ -407,7 +451,7 @@ impl<T> RefCell<T> {
 
 impl<T> Drop for RefCell<T> {
     fn drop(&mut self) {
-        unsafe { self.inner.deallocate() }
+        unsafe { self.inner.drop_n_dealloc() }
     }
 }
 

@@ -10,7 +10,7 @@
 ///
 /// # Interior Mutability
 /// Reon is not designed for interior mutability and should not be used with it. It does not employ any form of reference counting or mutual exclusion principles for accessing the data it points to. Therefore, it makes no data-race guarantees.
-///
+/// 
 /// # Traits
 /// * It implements `Copy` and `Clone` which both clone the pointer to the underlying data without cloning the data itself.
 /// * It implements `Deref` and `AsRef` with both target types as T.

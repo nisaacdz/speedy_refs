@@ -38,7 +38,7 @@ impl<T> Drop for Rc<T> {
     fn drop(&mut self) {
         unsafe {
             if self.inner.as_mut().decrement_count() == 0 {
-                self.inner.deallocate()
+                self.inner.drop_n_dealloc()
             }
         }
     }
