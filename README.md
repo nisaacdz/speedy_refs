@@ -10,7 +10,7 @@ Contains faster and lighter alternatives to std smart pointers and much more.
 - **RefCell** - Faster and lighter alternative to the std RefCell
 - **Arc** - Lighter alternative the std arc with equivalent performance
 - **Cell** - Extremely fast and smart pointer for mutable access from an immutable context
-- **Reon** - Read only static pointer based on the `Arc` and implements `Sync` and `Send`
+- **Reon** - Read only static pointer that implements `Sync` and `Send`
 
 # Upcoming
 - **Atomic** - Uses atomic operations to control mutable and immutable access to any type for multithread syncing.
@@ -29,7 +29,7 @@ Contains faster and lighter alternatives to std smart pointers and much more.
 * From Cargo.toml: 
 ```
 [dependencies]
-speedy_refs = "0.2.0"
+speedy_refs = "0.2.1"
 ```
 
 # Example
