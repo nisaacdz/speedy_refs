@@ -173,9 +173,7 @@ impl<T> HeapCell<T> {
 /// Rust rules allow a number of reads or a single write at a time.
 ///
 /// # Fields
-/// * `inner: HeapCell<(usize, bool)>`
-/// * `usize` stores the number of reads that are currently in use while
-/// * `bool` tells if there is currenly a reader of the value.
+/// * `inner: std::cell::UnsafeCell<isize>`
 ///
 /// # Note
 /// BorrowFlag is meant to be added as a field in your struct for added borrow checker functionalities since it

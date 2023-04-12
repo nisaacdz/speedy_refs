@@ -9,7 +9,7 @@ Contains faster and lighter alternatives to std smart pointers and much more.
 - **Rc** - Faster and lighter alternative to the std reference counting smart pointer
 - **RefCell** - Faster and lighter alternative to the std RefCell
 - **Arc** - Lighter alternative the std arc with equivalent performance
-- **Cell** - Extremely fast and smart pointer for mutable access from an immutable context
+- **HeapCell** - Heap allocated UnsafeCell equivalent (Stores the underlying data in the heap and keeps a pointer to it)
 - **Reon** - Read only static pointer that implements `Sync` and `Send`
 
 # Upcoming
