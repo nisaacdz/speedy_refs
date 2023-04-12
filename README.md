@@ -29,7 +29,7 @@ Contains faster and lighter alternatives to std smart pointers and much more.
 * From Cargo.toml: 
 ```
 [dependencies]
-speedy_refs = "0.2.1"
+speedy_refs = "0.2.2"
 ```
 
 # Example
