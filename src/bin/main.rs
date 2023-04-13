@@ -1,8 +1,18 @@
 use bench::*;
-const LEN: usize = 30_000_000;
+const LEN: usize = 3_000_000;
+const TIMES: usize =  3_000;
 
 fn main() {
     start()
+}
+
+fn clone<R: Clone>(value: R) {
+    for _ in 0..TIMES {
+        let temp = value.clone();
+        for _ in 0..TIMES {
+            let _ = temp.clone();
+        }
+    }
 }
 
 fn mine() {
@@ -30,9 +40,14 @@ fn std() {
 
 pub fn start() {
     let bcher = MyBencher::new(2);
-    println!("Refcells Bench\n");
-    bcher.bench("MINE", || mine());
-    bcher.bench("STD", || std());
+    println!("Refcells Bench");
+    bcher.bench("MY-REFCELL", || mine());
+    bcher.bench("STD-REFCELL", || std());
+    println!("\nRcs Bench");
+    let mine = speedy_refs::Rc::new(String::from("Hello, World!"));
+    let std = std::rc::Rc::new(String::from("Hello, World!"));
+    bcher.bench("MY-RC", || clone(mine.clone()));
+    bcher.bench("STD-RC", || clone(std.clone()));
 }
 
 mod bench {

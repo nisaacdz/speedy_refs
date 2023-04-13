@@ -23,10 +23,9 @@ Contains faster and lighter alternatives to std smart pointers and much more.
 
 # INSTALLATION
 
-* Cargo command:
-`cargo add speedy_refs`
+* **Cargo command** -> `cargo add speedy_refs`
 
-* From Cargo.toml: 
+* **From Cargo.toml** -> 
 ```
 [dependencies]
 speedy_refs = "0.2.2"
