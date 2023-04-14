@@ -1,6 +1,6 @@
 use bench::*;
-const LEN: usize = 3_000_000;
-const TIMES: usize =  3_000;
+const LEN: usize = 3;
+const TIMES: usize = 3_000;
 
 fn main() {
     start()
@@ -51,8 +51,6 @@ pub fn start() {
 }
 
 mod bench {
-    use num_format::{Locale, ToFormattedString};
-
     pub struct MyBencher(usize);
 
     impl MyBencher {
@@ -60,9 +58,9 @@ mod bench {
             Self(size)
         }
         pub fn bench(&self, alias: &str, f: impl Fn()) {
-            let r1 = self.measure(&f).to_formatted_string(&Locale::en);
-            let r2 = self.measure(&f).to_formatted_string(&Locale::en);
-            let r3 = self.measure(&f).to_formatted_string(&Locale::en);
+            let r1 = self.measure(&f);
+            let r2 = self.measure(&f);
+            let r3 = self.measure(&f);
 
             println!("Results for {}\n[{}ns, {}ns, {}ns]\n", alias, r1, r2, r3);
         }

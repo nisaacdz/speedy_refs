@@ -1,6 +1,6 @@
 [package]
 name = "speedy_refs"
-version = "0.2.2"
+version = "0.2.3"
 description = "A collection of simple, Fast, and light smart pointers for rust."
 edition = "2021"
 license = "MIT"
@@ -9,4 +9,3 @@ license = "MIT"
 
 
 [dependencies]
-num-format = "0.4.4"

@@ -1,22 +1,18 @@
-pub struct Rc<T> {
-    inner: super::HeapCell<Inner<T>>,
-}
+pub struct Rc<T>(*mut Inner<T>);
 
 impl<T> Clone for Rc<T> {
+    #[inline]
     fn clone(&self) -> Self {
         unsafe {
-            self.inner.as_mut().increment_count();
-            Self {
-                inner: self.inner.clone(),
-            }
+            self.0.as_mut().unwrap().1 += 1;
+            Self(self.0)
         }
     }
 }
 
 impl<T> Rc<T> {
-    pub fn new(data: T) -> Self {
-        let res = super::HeapCell::new(Inner::new(data));
-        Self { inner: res }
+    pub fn new(val: T) -> Self {
+        Self(Inner::new(val).into_ptr())
     }
 }
 
@@ -24,7 +20,7 @@ impl<T> std::ops::Deref for Rc<T> {
     type Target = T;
     #[inline]
     fn deref(&self) -> &Self::Target {
-        unsafe { self.inner.as_ref().value() }
+        unsafe { &self.0.as_ref().unwrap().0 }
     }
 }
 
@@ -35,39 +31,25 @@ impl<T> AsRef<T> for Rc<T> {
 }
 
 impl<T> Drop for Rc<T> {
+    #[inline]
     fn drop(&mut self) {
-        unsafe {
-            if self.inner.as_mut().decrement_count() == 0 {
-                self.inner.drop_n_dealloc()
-            }
+        let v = unsafe { self.0.as_mut() }.unwrap();
+        v.1 -= 1;
+        if v.1 == 0 {
+            unsafe { self.0.drop_in_place() };
         }
     }
 }
 
-struct Inner<T> {
-    val: T,
-    count: usize,
-}
+struct Inner<T>(T, usize);
 
 impl<T> Inner<T> {
     pub(super) fn new(val: T) -> Self {
-        Self { val, count: 1 }
+        Self(val, 1)
     }
 
     #[inline]
-    fn value(&self) -> &T {
-        &self.val
-    }
-
-    #[inline]
-    fn increment_count(&mut self) {
-        self.count += 1;
-    }
-
-    /// Decreases reference count by one and returns the new count
-    #[inline]
-    fn decrement_count(&mut self) -> usize {
-        self.count -= 1;
-        self.count
+    fn into_ptr(self) -> *mut Self {
+        Box::leak(Box::new(self))
     }
 }

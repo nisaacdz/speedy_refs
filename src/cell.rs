@@ -1,8 +1,12 @@
+use std::cell::UnsafeCell;
+
 /// # HeapCell
 ///
 /// `HeapCell` is a container type that allows mutation of its contents even when it is
 /// externally immutable by storing the type it points to on the heap and keeping a mutable pointer to it.
-/// 
+///
+/// Functions like `NonNull` + `UnsafeCell`
+///
 /// # Like UnsafeCell
 /// It is similar to `UnsafeCell` in terms of functionality but provides the following differences:
 /// - It moves the data onto the heap and stores a pointer to it.
@@ -39,6 +43,7 @@ pub struct HeapCell<T> {
 }
 
 impl<T> Clone for HeapCell<T> {
+    #[inline(always)]
     fn clone(&self) -> Self {
         Self {
             inner: self.inner.clone(),
@@ -59,7 +64,6 @@ impl<T> HeapCell<T> {
     /// # Panics
     ///
     /// This function will panic if memory allocation fails.
-    #[inline]
     pub fn new(val: T) -> Self {
         Self {
             inner: Box::leak(Box::new(val)) as *mut T,
@@ -127,7 +131,6 @@ impl<T> HeapCell<T> {
     ///
     /// The caller must ensure that the `HeapCell` is not used after calling `deallocate` as
     /// `self.inner` will then point to an invalid memory.
-
     pub unsafe fn drop_n_dealloc(&self) {
         let ptr = self.inner;
         std::ptr::drop_in_place(ptr);
@@ -137,7 +140,6 @@ impl<T> HeapCell<T> {
     ///
     /// # Returns
     /// The new cloned value
-    #[inline]
     pub fn clone_inner(&self) -> HeapCell<T>
     where
         T: Clone,
@@ -150,18 +152,19 @@ impl<T> HeapCell<T> {
     ///
     /// # Safety
     /// It is up to the caller to make sure that this method is not called while T is borrowed
-    #[inline]
     pub unsafe fn replace(&self, mut val: T) -> T {
         std::mem::swap(unsafe { self.as_mut() }, &mut val);
         val
     }
 
     // Calls drop on T, if it implements Drop
+    #[inline]
     pub unsafe fn drop(&self) {
         std::ptr::drop_in_place(self.inner);
     }
 
     // Deallocates the momory associated with T
+    #[inline]
     pub unsafe fn dealloc(&self) {
         std::alloc::dealloc(self.inner as *mut u8, std::alloc::Layout::new::<T>());
     }
@@ -186,7 +189,6 @@ pub struct BorrowFlag {
 
 impl BorrowFlag {
     /// Initiallizes a new BorrowFlag with 0 current reads and no current writer
-    #[inline]
     pub fn new() -> Self {
         Self {
             inner: std::cell::UnsafeCell::new(0),
@@ -201,7 +203,6 @@ impl BorrowFlag {
     /// # Returns
     /// * `true` - If immutable borrow is possible
     /// * `false` - If immutable borrow is impossible
-    #[inline]
     pub fn can_borrow(&self) -> bool {
         unsafe { *self.inner.get() >= 0 }
     }
@@ -214,7 +215,6 @@ impl BorrowFlag {
     /// # Returns
     /// * `true` - If mutable borrow is possible
     /// * `false` - If mutable borrow is impossible
-    #[inline]
     pub fn can_borrow_mut(&self) -> bool {
         unsafe { *self.inner.get() == 0 }
     }
@@ -228,52 +228,43 @@ impl BorrowFlag {
     /// * `true` - If taking ownership is possible
     /// * `false` - If taking ownership is impossible
 
-    #[inline]
     pub fn can_own(&self) -> bool {
         self.can_borrow_mut()
     }
     /// Marks a the start of a new read by increasing the count of the internal `readers`
     ///
-    #[inline]
     pub fn borrow(&self) {
-        unsafe {
-            std::ptr::write(self.inner.get(), *self.inner.get() + 1)
-        }
+        unsafe { std::ptr::write(self.inner.get(), *self.inner.get() + 1) }
     }
     /// Marks the end of an ongoing read by decrementing the count of the internal `readers`
     ///
-    #[inline]
+    ///
     pub fn drop_borrow(&self) {
-        unsafe {
-            std::ptr::write(self.inner.get(), *self.inner.get() - 1)
-        }
+        unsafe { std::ptr::write(self.inner.get(), *self.inner.get() - 1) }
     }
 
     /// Marks the start of a write by setting the internal `write` field to true
-    #[inline]
+    ///
     pub fn borrow_mut(&self) {
-        unsafe {
-            std::ptr::write(self.inner.get(), -1)
-        }
+        unsafe { std::ptr::write(self.inner.get(), -1) }
     }
     /// Marks the end of a write session by setting the internal `write` field to false
-    #[inline]
+    ///
     pub fn drop_borrow_mut(&self) {
-        unsafe {
-            std::ptr::write(self.inner.get(), 0)
-        }
+        unsafe { std::ptr::write(self.inner.get(), 0) }
     }
 }
 
 /// An immutable borrow of RefCell
 pub struct Ref<'a, T> {
-    cell: &'a RefCell<T>,
+    val: &'a mut Inner<T>,
 }
 
 /// Dropping a Ref object
 impl<'a, T> Drop for Ref<'a, T> {
+    #[inline]
     fn drop(&mut self) {
-        self.cell.flag.drop_borrow()
+        self.val.flag -= 1;
     }
 }
 
@@ -281,9 +272,7 @@ impl<'a, T> std::ops::Deref for Ref<'a, T> {
     type Target = T;
     #[inline]
     fn deref(&self) -> &Self::Target {
-        // Since self is the only mutable reference to the RefCell,
-        // we can create references without minding to count it in the borrow flag
-        unsafe { self.cell.inner.as_ref() }
+        &self.val.val
     }
 }
 
@@ -294,24 +283,12 @@ impl<'a, T> AsRef<T> for Ref<'a, T> {
 }
 
 pub struct RefMut<'a, T> {
-    cell: &'a RefCell<T>,
+    val: &'a mut Inner<T>,
 }
 
 impl<'a, T> RefMut<'a, T> {
-    #[inline]
-    pub fn new(val: &'a RefCell<T>) -> Self {
-        Self { cell: val }
-    }
-    #[inline]
     pub fn replace(&mut self, val: T) -> T {
-        unsafe { self.cell.inner.replace(val) }
-    }
-}
-
-impl<'a, T> Drop for RefMut<'a, T> {
-    #[inline]
-    fn drop(&mut self) {
-        self.cell.flag.drop_borrow_mut()
+        std::mem::replace(&mut self.val.val, val)
     }
 }
 
@@ -319,9 +296,7 @@ impl<'a, T> std::ops::Deref for RefMut<'a, T> {
     type Target = T;
     #[inline]
     fn deref(&self) -> &Self::Target {
-        // Since self is the only mutable reference to the RefCell,
-        // we can create references without minding to count it in the borrow flag
-        unsafe { self.cell.inner.as_ref() }
+        &self.val.val
     }
 }
 
@@ -334,7 +309,7 @@ impl<'a, T> AsRef<T> for RefMut<'a, T> {
 impl<'a, T> std::ops::DerefMut for RefMut<'a, T> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
-        unsafe { self.cell.inner.as_mut() }
+        &mut self.val.val
     }
 }
 
@@ -344,11 +319,19 @@ impl<'a, T> AsMut<T> for RefMut<'a, T> {
     }
 }
 
+impl<'a, T> Drop for RefMut<'a, T> {
+    #[inline]
+    fn drop(&mut self) {
+        self.val.flag = 0;
+    }
+}
+
 /// # RefCell
 /// A RefCell is a mutable memory location with dynamically checked borrow rules.
+/// 
 ///
-/// It is similar to `HeapCell<T>`, but provides the ability to perform mutable borrows and immutable borrows safely
-/// at runtime by runtime enforcement of the borrow-checker rules
+/// # vs std::cell::RefCell
+/// //TODO
 ///
 /// The `RefCell` stores a value of type `T`, and allows mutable access through the `borrow_mut` method,
 /// which returns a `RefMut<T>` type. Immutable access is granted through the `borrow` method, which
@@ -397,43 +380,48 @@ impl<'a, T> AsMut<T> for RefMut<'a, T> {
 /// ```
 
 pub struct RefCell<T> {
-    inner: HeapCell<T>,
-    flag: BorrowFlag,
+    inner: std::cell::UnsafeCell<Inner<T>>,
 }
 
 impl<T> RefCell<T> {
     pub fn new(val: T) -> Self {
         Self {
-            inner: HeapCell::new(val),
-            flag: BorrowFlag::new(),
+            inner: UnsafeCell::new(Inner::new(val)),
         }
     }
 
-    pub fn from_parts(val: HeapCell<T>, flag: BorrowFlag) -> Self {
-        Self { inner: val, flag }
-    }
-
+    #[inline(always)]
     pub fn borrow<'a>(&'a self) -> Ref<'a, T> {
-        if self.flag.can_borrow() {
-            self.flag.borrow();
-            Ref { cell: self }
-        } else {
-            panic!("T cannot be borrowed immutably while T is borrowed mutably")
+        unsafe {
+            if (*self.inner.get()).flag == 0 {
+                (&mut *self.inner.get()).flag += 1;
+                Ref {
+                    val: &mut *self.inner.get(),
+                }
+            } else {
+                panic!("T cannot be borrowed immutably while T is borrowed mutably")
+            }
         }
     }
 
+    #[inline(always)]
     pub fn borrow_mut<'a>(&'a self) -> RefMut<'a, T> {
-        if self.flag.can_borrow_mut() {
-            self.flag.borrow_mut();
-            RefMut { cell: self }
-        } else {
-            panic!("T cannot be borrowed mutably while T is borrowed mutably or immutably")
+        unsafe {
+            if (*self.inner.get()).flag == 0 {
+                (&mut *self.inner.get()).flag = -1;
+                RefMut {
+                    val: &mut *self.inner.get(),
+                }
+            } else {
+                panic!("T cannot be borrowed mutably while T is borrowed mutably or immutably")
+            }
         }
     }
 
-    pub fn take(self) -> T {
-        if self.flag.can_own() {
-            unsafe { self.inner.take() }
+    pub fn take(mut self) -> T {
+        if self.inner.get_mut().flag == 0 {
+            let Inner { val, flag: _ } = self.inner.into_inner();
+            val
         } else {
             panic!("T cannot be moved while T is borrowed mutably or immutably")
         }
@@ -447,15 +435,19 @@ impl<T> RefCell<T> {
     }
 }
 
-impl<T> Drop for RefCell<T> {
-    fn drop(&mut self) {
-        unsafe { self.inner.drop_n_dealloc() }
+impl<T: Clone> Clone for RefCell<T> {
+    fn clone(&self) -> Self {
+        unsafe { RefCell::new((*self.inner.get()).val.clone()) }
     }
 }
 
-impl<T: Clone> Clone for RefCell<T> {
-    fn clone(&self) -> Self {
-        let clone = self.inner.clone_inner();
-        RefCell::from_parts(clone, BorrowFlag::new())
+struct Inner<T> {
+    val: T,
+    flag: isize,
+}
+
+impl<T> Inner<T> {
+    fn new(val: T) -> Self {
+        Self { val, flag: 0 }
     }
 }
