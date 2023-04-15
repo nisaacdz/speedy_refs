@@ -1,6 +1,6 @@
 use bench::*;
-const LEN: usize = 3;
-const TIMES: usize = 3_000;
+const LEN: usize = 100000;
+const TIMES: usize = 3_0000000;
 
 fn main() {
     start()
