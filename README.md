@@ -6,10 +6,10 @@ Contains faster and lighter alternatives to std smart pointers and much more.
 
 # FEATURES
 
-- **Rc** - Faster and lighter alternative to the std reference counting smart pointer
-- **RefCell** - Faster and lighter alternative to the std RefCell
-- **Arc** - Lighter alternative the std arc with equivalent performance
-- **HeapCell** - Heap allocated UnsafeCell equivalent (Stores the underlying data in the heap and keeps a pointer to it)
+- **Rc** -> Blazingly fast alternative to the std `Rc` smart pointer.
+- **RefCell** -> Blazingly fast alternative to the std `RefCell`.
+- **Arc** - Lighter alternative the std `Arc` with equivalent performance
+- **HeapCell** - Similar to `NonNull` with simpler type deallocation and destruction
 - **Reon** - Read only static pointer that implements `Sync` and `Send`
 
 # Upcoming
@@ -23,12 +23,15 @@ Contains faster and lighter alternatives to std smart pointers and much more.
 
 # INSTALLATION
 
-* **Cargo command** -> `cargo add speedy_refs`
+* **Cargo command** -> 
+```
+cargo add speedy_refs
+```
 
 * **From Cargo.toml** -> 
 ```
 [dependencies]
-speedy_refs = "0.2.2"
+speedy_refs = "0.2.3"
 ```
 
 # Example

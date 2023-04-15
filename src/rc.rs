@@ -6,17 +6,9 @@
 /// The `Rc<T>` type is implemented as a thin wrapper around a raw pointer to an `Inner<T>` struct,
 /// which contains the value of type `T` and a reference count stored in a `std::cell::UnsafeCell<usize>`.
 ///
-/// # Differences from `std::rc::Rc`
+/// # Major difference from `std::rc::Rc`
 ///
-/// The implementation of `speedy_refs::Rc` is similar to the implementation of `std::rc::Rc` in many ways. However, there are a few key differences in the implementation that are worth noting:
-///
-/// 1. The reference count in `speedy_refs::Rc` is stored in an `UnsafeCell<usize>`, whereas in `std::rc::Rc` it is stored in a non-atomic `Cell<usize>`. This makes the `std::rc::Rc` implementation slightly more efficient in single-threaded environments, but also makes it less suitable for multithreaded environments.
-///
-/// 2. The `speedy_refs::Rc` implementation does not provide an equivalent of `std::rc::Weak`, which allows for weak references that do not increment the reference count. This means that `speedy_refs::Rc` cannot be used for cyclic data structures that require weak references.
-///
-/// 3. The `speedy_refs::Rc` implementation does not provide an equivalent of `std::sync::Arc`, which allows for atomically reference-counted pointers that can be shared between threads. This means that `speedy_refs::Rc` is only suitable for use in single-threaded environments.
-///
-/// Despite these differences, the basic functionality and usage of `speedy_refs::Rc` is very similar to that of `std::rc::Rc`.
+/// 1. For the sake of simplicity and speed and general use case, this implementation does not provide different strengths of references.
 ///
 /// # Examples
 ///
@@ -43,15 +35,20 @@
 /// ```
 pub struct Rc<T>(*mut Inner<T>);
 
+/// Cloning An `Rc<T>` only creates a new pointer to the same content.
+///
+/// For this reason T has no Clone bound.
 impl<T> Clone for Rc<T> {
-    #[inline]
     fn clone(&self) -> Self {
+        // Self.0 remains valid until the last reference is dropped.
+        // For this reason it is safe to unwrap the `Option`
         unsafe { self.0.as_ref().unwrap() }.increment();
         Self(self.0)
     }
 }
 
 impl<T> Rc<T> {
+    /// Creates a new `speedy_refs::Rc` instance and returns it.
     pub fn new(val: T) -> Self {
         Self(Inner::new(val).into_ptr())
     }
@@ -75,8 +72,18 @@ impl<T> Drop for Rc<T> {
     fn drop(&mut self) {
         if unsafe { self.0.as_ref().unwrap().decrement() } == 0 {
             // TODO
-            // println!("Dropping actual content")
+            // println!("Dropping actual content");
             // let _ = unsafe { Box::from_raw(self.0) };
+            // unsafe { self.0.drop_in_place() }
+            /*
+            unsafe {
+                // std::ptr::drop_in_place(self.0);
+                std::alloc::dealloc(
+                    self.0.cast(),
+                    std::alloc::Layout::for_value(self.0.as_ref().unwrap()),
+                )
+            }
+            */
         } else {
             // println!("Dropping clone");
             // TODO
@@ -84,24 +91,16 @@ impl<T> Drop for Rc<T> {
     }
 }
 
-/// The `Inner` struct is a helper struct for `Rc` that stores the value and the reference count
+/// # Inner
+/// A helper struct for `Rc` that stores the value and the reference count
 /// for a shared value of type `T`. It is used to implement reference counting for the `Rc` type.
 ///
 /// The first field of `Inner` is the value of type `T` being shared by one or more `Rc`
 /// instances. The second field is an `UnsafeCell<usize>` that is used to store the reference count
 /// of the shared value. The `UnsafeCell` allows for interior mutability, which is necessary to
-/// increment or decrement the reference count from multiple `Rc` instances.
-///
-/// The `new` method constructs a new `Inner` instance with the given value and an initial reference
-/// count of 1. The reference count is stored in an `UnsafeCell`, which is wrapped in a `Cell` to
-/// provide interior mutability.
-///
-/// The `into_ptr` method takes ownership of an `Inner` instance and returns a raw pointer to it.
-/// This is used to create a new `Rc` instance that points to the shared value. The returned pointer
-/// is guaranteed to be unique, since it is created by `Box::leak`, which creates a memory leak by
-/// "forgetting" the original box allocation. This is safe because the leaked box will never be
-/// deallocated, so the pointer to its contents will remain valid for the lifetime of the program.
-pub(super) struct Inner<T>(T, std::cell::UnsafeCell<usize>);
+/// increment or decrement the reference count from immutable context.
+
+struct Inner<T>(T, std::cell::UnsafeCell<usize>);
 
 impl<T> Inner<T> {
     /// Constructs a new `Inner` instance with the given value and an initial reference count of 1.
@@ -111,15 +110,12 @@ impl<T> Inner<T> {
     }
 
     /// Takes ownership of an `Inner` instance and returns a raw pointer to it.
-    ///
-    /// This method is used to create a new `Rc` inner field that points to the shared value. The
-    /// returned pointer is guaranteed to be unique, since it is created by `Box::leak`, which
-    /// creates a memory leak by "forgetting" the original box allocation. This is safe because
-    /// the leaked box will never be deallocated, so the pointer to its contents will remain valid
-    /// until the last Rc clone is dropped.
+
     pub(super) fn into_ptr(self) -> *mut Self {
         Box::into_raw(Box::new(self))
     }
+
+    /// Immutably decrement the count of the clones of the `Rc`
 
     fn decrement(&self) -> usize {
         unsafe {
@@ -127,6 +123,8 @@ impl<T> Inner<T> {
             *self.1.get()
         }
     }
+
+    // Immutably increment the count of the clones of the `Rc`
 
     fn increment(&self) {
         unsafe { *self.1.get() += 1 }
@@ -149,13 +147,15 @@ mod test {
         #[derive(Default)]
         struct Item(Inner);
 
+        impl Drop for Item {
+            fn drop(&mut self) {
+                println!("Dropping item");
+            }
+        }
+
         let val = Item::default();
         let rc = super::Rc::new(val);
-        let clone = rc.clone();
-        let clone2 = rc.clone();
-
-        std::mem::drop(clone);
-        std::mem::drop(clone2);
-        std::mem::drop(rc);
+        let _v = rc.clone();
+        let _v = rc.clone();
     }
 }

@@ -1,6 +1,6 @@
 use bench::*;
-const LEN: usize = 100000;
-const TIMES: usize = 3_0000000;
+pub const LEN: usize = 100000;
+const TIMES: usize = 30000;
 
 fn main() {
     start()
@@ -15,7 +15,7 @@ fn clone<R: Clone>(value: R) {
     }
 }
 
-fn mine() {
+pub fn mine() {
     let rc = speedy_refs::RefCell::new(1);
 
     for i in 0..LEN {
@@ -27,7 +27,7 @@ fn mine() {
     }
 }
 
-fn std() {
+pub fn std() {
     let rc = std::cell::RefCell::new(1);
     for i in 0..LEN {
         if i & 1 == 0 {
@@ -40,9 +40,9 @@ fn std() {
 
 pub fn start() {
     let bcher = MyBencher::new(2);
-    println!("Refcells Bench");
-    bcher.bench("MY-REFCELL", || mine());
-    bcher.bench("STD-REFCELL", || std());
+    // println!("Refcells Bench");
+    // bcher.bench("MY-REFCELL", || mine());
+    // bcher.bench("STD-REFCELL", || std());
     println!("\nRcs Bench");
     let mine = speedy_refs::Rc::new(String::from("Hello, World!"));
     let std = std::rc::Rc::new(String::from("Hello, World!"));
