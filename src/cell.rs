@@ -451,3 +451,5 @@ impl<T> Inner<T> {
         Self { val, flag: 0 }
     }
 }
+
+unsafe impl<T: Send> Send for RefCell<T> {}
