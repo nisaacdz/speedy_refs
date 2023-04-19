@@ -73,7 +73,7 @@ impl<T> Drop for Rc<T> {
         if unsafe { self.0.as_ref().unwrap().decrement() } == 0 {
             // TODO
             // println!("Dropping actual content");
-            // let _ = unsafe { Box::from_raw(self.0) };
+            let _ = unsafe { Box::from_raw(self.0) };
             // unsafe { self.0.drop_in_place() }
             /*
             unsafe {
