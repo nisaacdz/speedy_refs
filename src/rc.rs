@@ -3,9 +3,14 @@
 /// to a value of type `T`. It tracks the number of references and automatically deallocates
 /// the value when the last reference is dropped.
 ///
+/// # Implementation
 /// The `Rc<T>` type is implemented as a thin wrapper around a raw pointer to an `Inner<T>` struct,
 /// which contains the value of type `T` and a reference count stored in a `std::cell::UnsafeCell<usize>`.
-///
+/// - The value passed to the new() is used together with a count to form an `Inner` type. let's call it `inner`.
+/// - `inner` is moved to the heap
+/// - A pointer to the heap memory of `inner` is kept by the `Rc` struct
+/// - When the last Rc is dropped, `inner` is deallocated
+/// 
 /// # Weak References
 ///
 /// This `Rc<T>` implementation does not provide a way to distinguish between strong and weak references.
