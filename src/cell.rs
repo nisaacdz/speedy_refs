@@ -453,3 +453,53 @@ impl<T> Inner<T> {
 }
 
 unsafe impl<T: Send> Send for RefCell<T> {}
+
+
+/// A reference-counted cell that allows for interior mutability.
+///
+/// This struct is essentially a zero-cost abstraction over using `std::rc::Rc<std::cell::RefCell<T>>`,
+/// allowing for easier and more concise code. Multiple `RcCell` instances can share ownership of the
+/// same value, and the value can be mutated even when there are shared references to it.
+/// 
+/// # Example
+/// ```
+/// use my_library::RcCell;
+/// let rc_cell = RcCell::new(42);
+/// let shared_rc_cell = rc_cell.clone();
+/// // Get a shared reference to the value inside the RcCell.
+/// let shared_ref = shared_rc_cell.borrow();
+/// 
+/// // Update the value inside the RcCell.
+/// *rc_cell.borrow_mut() += 1;
+/// 
+/// // The shared reference reflects the updated value.
+/// assert_eq!(*shared_ref, 43);
+/// ```
+
+pub struct RcCell<T> {
+    inner: std::rc::Rc<std::cell::RefCell<T>>,
+}
+
+impl<T> RcCell<T> {
+    /// Creates a new `RcCell<T>` instance containing the provided value.
+    pub fn new(value: T) -> RcCell<T>{
+        Self {
+            inner: std::rc::Rc::new(std::cell::RefCell::new(value)),
+        }
+    }
+}
+
+impl<T> Clone for RcCell<T> {
+    /// Clones the `RcCell<T>` instance, creating a new instance that shares ownership of the same value.
+    fn clone(&self) -> Self {
+        Self { inner: self.inner.clone() }
+    }
+}
+
+impl<T> std::ops::Deref for RcCell<T> {
+    type Target = std::cell::RefCell<T>;
+    /// Dereferences the `RcCell<T>` instance to the underlying `RefCell<T>`.
+    fn deref(&self) -> &Self::Target {
+        std::ops::Deref::deref(&self.inner)
+    }
+}
