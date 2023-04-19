@@ -31,7 +31,7 @@ cargo add speedy_refs
 * **From Cargo.toml** -> 
 ```
 [dependencies]
-speedy_refs = "0.2.3"
+speedy_refs = "0.2.4"
 ```
 
 # Example
