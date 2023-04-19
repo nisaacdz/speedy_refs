@@ -6,10 +6,14 @@
 /// The `Rc<T>` type is implemented as a thin wrapper around a raw pointer to an `Inner<T>` struct,
 /// which contains the value of type `T` and a reference count stored in a `std::cell::UnsafeCell<usize>`.
 ///
-/// # Major difference from `std::rc::Rc`
+/// # Weak References
 ///
-/// 1. For the sake of simplicity and speed and general use case, this implementation does not provide different strengths of references.
+/// This `Rc<T>` implementation does not provide a way to distinguish between strong and weak references.
+/// Forming reference cycles with `Rc<T>` instances can lead to memory leaks, even after all strong references have been dropped.
+/// To avoid memory leaks caused by reference cycles, we recommend that you use `std::rc::Rc` when the use case it likely
+/// to form reference cycles.
 ///
+/// 
 /// # Examples
 ///
 /// ```

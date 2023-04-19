@@ -328,7 +328,7 @@ impl<'a, T> Drop for RefMut<'a, T> {
 
 /// # RefCell
 /// A RefCell is a mutable memory location with dynamically checked borrow rules.
-/// 
+///
 ///
 /// # vs std::cell::RefCell
 /// //TODO
@@ -337,14 +337,8 @@ impl<'a, T> Drop for RefMut<'a, T> {
 /// which returns a `RefMut<T>` type. Immutable access is granted through the `borrow` method, which
 /// returns a `Ref<T>` type.
 ///
-/// # BorrowFlag
-/// Borrow rules are enforced at runtime, with a `BorrowFlag` type that keeps track of the number of active
-/// borrows. If an attempt is made to borrow a value mutably while it is already borrowed (either `mutably` or
-/// `immutably`), then a panic will occur. If an attempt is made to borrow a value `immutably` while it is already
-/// `mutably` borrowed, then a panic will also occur.
-///
 /// # Panics
-/// If the borrow rules are violated at runtime
+/// If any of the borrow rules are violated at runtime
 ///
 /// # Others
 /// The `take` method can be used to extract the value from the RefCell and invalidate the borrow flag.
@@ -384,36 +378,111 @@ pub struct RefCell<T> {
 }
 
 impl<T> RefCell<T> {
+    /// Creates a new `RefCell` containing the given value.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use speedy_refs::RefCell;
+    ///
+    /// let cell = RefCell::new(42);
+    /// ```
     pub fn new(val: T) -> Self {
         Self {
             inner: UnsafeCell::new(Inner::new(val)),
         }
     }
 
-    #[inline(always)]
+    /// Borrows the value immutably. Panics if the value is currently borrowed mutably.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use speedy_refs::RefCell;
+    ///
+    /// let cell = RefCell::new(42);
+    ///
+    /// let reference = cell.borrow();
+    ///
+    /// assert_eq!(*reference, 42);
+    /// ```
     pub fn borrow<'a>(&'a self) -> Ref<'a, T> {
+        self.try_borrow()
+            .expect("T cannot be borrowed immutably while T is borrowed mutably")
+    }
+
+    /// Tries to borrow the value immutably. Returns `None` if the value is currently borrowed mutably.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use speedy_refs::RefCell;
+    ///
+    /// let cell = RefCell::new(42);
+    ///
+    /// let reference1 = cell.try_borrow().unwrap();
+    /// assert_eq!(*reference1, 42);
+    ///
+    /// let reference2 = cell.try_borrow();
+    /// assert!(reference2.is_none());
+    /// ```
+    pub fn try_borrow<'a>(&'a self) -> Option<Ref<'a, T>> {
         unsafe {
             if (*self.inner.get()).flag == 0 {
                 (&mut *self.inner.get()).flag += 1;
-                Ref {
+                Some(Ref {
                     val: &mut *self.inner.get(),
-                }
+                })
             } else {
-                panic!("T cannot be borrowed immutably while T is borrowed mutably")
+                None
             }
         }
     }
 
-    #[inline(always)]
+    /// Borrows the value mutably. Panics if the value is currently borrowed (either mutably or immutably).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use speedy_refs::RefCell;
+    ///
+    /// let cell = RefCell::new(42);
+    ///
+    /// *cell.borrow_mut() = 13;
+    ///
+    /// let reference = cell.borrow();
+    ///
+    /// assert_eq!(*reference, 13);
+    /// ```
     pub fn borrow_mut<'a>(&'a self) -> RefMut<'a, T> {
+        self.try_borrow_mut()
+            .expect("T cannot be borrowed mutably while T is borrowed mutably or immutably")
+    }
+
+    /// Tries to borrow the value mutably. Returns `None` if the value is currently borrowed (either mutably or immutably).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use speedy_refs::RefCell;
+    ///
+    /// let cell = RefCell::new(42);
+    ///
+    /// let mut mut_reference1 = cell.try_borrow_mut().unwrap();
+    /// *mut_reference1 = 13;
+    ///
+    /// let mut_reference2 = cell.try_borrow_mut();
+    /// assert!(mut_reference2.is_none());
+    /// ```
+    pub fn try_borrow_mut<'a>(&'a self) -> Option<RefMut<'a, T>> {
         unsafe {
             if (*self.inner.get()).flag == 0 {
                 (&mut *self.inner.get()).flag = -1;
-                RefMut {
+                Some(RefMut {
                     val: &mut *self.inner.get(),
-                }
+                })
             } else {
-                panic!("T cannot be borrowed mutably while T is borrowed mutably or immutably")
+                None
             }
         }
     }
@@ -454,24 +523,24 @@ impl<T> Inner<T> {
 
 unsafe impl<T: Send> Send for RefCell<T> {}
 
-
 /// A reference-counted cell that allows for interior mutability.
 ///
 /// This struct is essentially a zero-cost abstraction over using `std::rc::Rc<std::cell::RefCell<T>>`,
 /// allowing for easier and more concise code. Multiple `RcCell` instances can share ownership of the
 /// same value, and the value can be mutated even when there are shared references to it.
-/// 
+///
 /// # Example
 /// ```
-/// use my_library::RcCell;
+/// use speedy_refs::RcCell;
 /// let rc_cell = RcCell::new(42);
 /// let shared_rc_cell = rc_cell.clone();
 /// // Get a shared reference to the value inside the RcCell.
-/// let shared_ref = shared_rc_cell.borrow();
-/// 
+///
 /// // Update the value inside the RcCell.
 /// *rc_cell.borrow_mut() += 1;
-/// 
+///
+/// let shared_ref = shared_rc_cell.borrow();
+///
 /// // The shared reference reflects the updated value.
 /// assert_eq!(*shared_ref, 43);
 /// ```
@@ -482,7 +551,7 @@ pub struct RcCell<T> {
 
 impl<T> RcCell<T> {
     /// Creates a new `RcCell<T>` instance containing the provided value.
-    pub fn new(value: T) -> RcCell<T>{
+    pub fn new(value: T) -> RcCell<T> {
         Self {
             inner: std::rc::Rc::new(std::cell::RefCell::new(value)),
         }
@@ -492,7 +561,9 @@ impl<T> RcCell<T> {
 impl<T> Clone for RcCell<T> {
     /// Clones the `RcCell<T>` instance, creating a new instance that shares ownership of the same value.
     fn clone(&self) -> Self {
-        Self { inner: self.inner.clone() }
+        Self {
+            inner: self.inner.clone(),
+        }
     }
 }
 
