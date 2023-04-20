@@ -39,9 +39,9 @@ impl<T> Drop for Arc<T> {
     fn drop(&mut self) {
         let inner = unsafe { self.inner.as_mut().unwrap() };
 
-        let new_count = inner.decrement_count();
+        let old_count = inner.decrement_count();
 
-        if new_count == 1 {
+        if old_count == 1 {
             let _ = unsafe { Box::from_raw(self.inner) };
         }
     }

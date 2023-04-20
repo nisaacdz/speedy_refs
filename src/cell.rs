@@ -585,10 +585,10 @@ impl<T> std::ops::Deref for RcCell<T> {
 /// // Create a new SharedCell with the initial value 42.
 /// let cell = SharedCell::new(42);
 /// // Get a shared reference to the contained value.
-/// let value_ref = unsafe { cell.as_ref() };
+/// let value_ref = unsafe { cell.get_ref() };
 /// assert_eq!(*value_ref, 42);
 /// // Get a mutable reference to the contained value.
-/// let value_mut_ref = unsafe { cell.as_mut() };
+/// let value_mut_ref = unsafe { cell.get_mut() };
 /// *value_mut_ref = 10;
 /// assert_eq!(*value_ref, 10);
 /// ```
@@ -609,15 +609,15 @@ impl<T> SharedCell<T> {
     /// This method uses the `UnsafeCell` internally to allow for mutable access without violating Rust's borrowing rules.
     /// However, it is marked as unsafe because it allows for multiple mutable references to the same value, which can lead
     /// to data races if not used correctly.
-    pub unsafe fn as_mut(&self) -> &mut T {
+    pub unsafe fn get_mut(&self) -> &mut T {
         &mut *self.value.get()
     }
 
     /// Returns a shared reference to the contained value.
     ///
     /// This method uses the `UnsafeCell` internally to allow for shared access without violating Rust's borrowing rules.
-    /// However, it is marked as unsafe for the same reason as `as_mut`.
-    pub unsafe fn as_ref(&self) -> &T {
+    /// However, it is marked as unsafe for the same reason as `get_mut`.
+    pub unsafe fn get_ref(&self) -> &T {
         &*self.value.get()
     }
 }
@@ -628,7 +628,7 @@ impl<T> !Sync for SharedCell<T> {}
 // We mark `SharedCell` as `Send` if the contained type `T` is also `Send`.
 unsafe impl<T: Send> Send for SharedCell<T> {}
 
-/// # JavaCell
+/// # Cell
 /// A smart pointer that provides shared ownership of its contained value `T` with interior mutability.
 ///
 /// This struct is implemented using an `std::rc::Rc` and a `speedy_refs::SharedCell` to provide shared ownership and interior mutability,
@@ -640,13 +640,13 @@ unsafe impl<T: Send> Send for SharedCell<T> {}
 /// # Examples
 ///
 /// ```
-/// use speedy_refs::JavaCell;
+/// use speedy_refs::Cell;
 ///
-/// let mut items: JavaCell<Vec<String>> = JavaCell::new(vec!["Hello".into(), ",".into(), " ".into(), "World".into(), "!".into()]);
+/// let mut items: Cell<Vec<String>> = Cell::new(vec!["Hello".into(), ",".into(), " ".into(), "World".into(), "!".into()]);
 ///
 /// let clone = items.clone();
 ///
-/// // Modify the contents of the original JavaCell.
+/// // Modify the contents of the original Cell.
 /// items.pop();
 ///
 /// // Collect shared references to the remaining items.
@@ -654,26 +654,34 @@ unsafe impl<T: Send> Send for SharedCell<T> {}
 ///
 /// assert_eq!(clone.len(), 4);
 /// ```
-pub struct JavaCell<T> {
+pub struct Cell<T> {
     value: std::rc::Rc<SharedCell<T>>,
 }
 
-impl<T: std::fmt::Debug> std::fmt::Debug for JavaCell<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Debug::fmt(unsafe { self.value.as_ref().as_ref() }, f)
+
+use std::fmt::{Debug, Result, Formatter};
+
+impl<T: Debug> Debug for Cell<T> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        Debug::fmt(self.get_ref(), f)
     }
 }
 
-impl<T> JavaCell<T> {
-    /// Creates a new `JavaCell` instance with the specified initial value.
-    pub fn new(value: T) -> JavaCell<T> {
-        Self {
-            value: std::rc::Rc::new(SharedCell::new(value)),
-        }
+impl<T> AsRef<T> for Cell<T> {
+    fn as_ref(&self) -> &T {
+        self.get_ref()
     }
 }
 
-impl<T> std::ops::Deref for JavaCell<T> {
+impl<T> AsMut<T> for Cell<T> {
+    fn as_mut(&mut self) -> &mut T {
+        self.get_mut()
+    }
+}
+
+use std::ops::{Deref, DerefMut};
+
+impl<T> Deref for Cell<T> {
     type Target = T;
 
     /// Returns a shared reference to the contained value.
@@ -681,24 +689,89 @@ impl<T> std::ops::Deref for JavaCell<T> {
     /// This method uses the `UnsafeCell` internally to allow for shared access without violating Rust's borrowing rules.
     /// However, it is marked as unsafe for the same reason as `SharedCell::as_ref`.
     fn deref(&self) -> &Self::Target {
-        unsafe { self.value.as_ref().as_ref() }
+        self.get_ref()
     }
 }
 
-impl<T> std::ops::DerefMut for JavaCell<T> {
+impl<T> DerefMut for Cell<T> {
     /// Returns a mutable reference to the contained value.
     ///
     /// This method uses the `UnsafeCell` internally to allow for mutable access without violating Rust's borrowing rules.
     /// However, it is marked as unsafe for the same reason as `SharedCell::as_mut`.
     fn deref_mut(&mut self) -> &mut Self::Target {
-        unsafe { self.value.as_ref().as_mut() }
+        self.get_mut()
     }
 }
 
-impl<T> Clone for JavaCell<T> {
-    /// Returns a new `JavaCell` instance with a shared reference to the same contained value.
+impl<T> Cell<T> {
+    /// Creates a new `Cell` instance with the specified initial value.
+    pub fn new(value: T) -> Cell<T> {
+        Self {
+            value: std::rc::Rc::new(SharedCell::new(value)),
+        }
+    }
+
+    pub(crate) fn get_ref(&self) -> &T {
+        unsafe { self.value.get_ref() }
+    }
+
+    pub(crate) fn get_mut(&self) -> &mut T {
+        unsafe { self.value.get_mut() }
+    }
+}
+
+impl<T: PartialEq> PartialEq for Cell<T> {
+    fn eq(&self, other: &Self) -> bool {
+        PartialEq::eq(self.get_ref(), other.get_ref())
+    }
+    fn ne(&self, other: &Self) -> bool {
+        PartialEq::ne(self.get_ref(), other.get_ref())
+    }
+}
+
+impl<T: Eq> Eq for Cell<T> {}
+
+impl<T: PartialOrd> PartialOrd for Cell<T> {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.get_ref().partial_cmp(other.get_ref())
+    }
+
+    fn lt(&self, other: &Self) -> bool {
+        self.get_ref().lt(other.get_ref())
+    }
+
+    fn le(&self, other: &Self) -> bool {
+        self.get_ref().le(other.get_ref())
+    }
+
+    fn gt(&self, other: &Self) -> bool {
+        self.get_ref().gt(other.get_ref())
+    }
+
+    fn ge(&self, other: &Self) -> bool {
+        self.get_ref().ge(other.get_ref())
+    }
+}
+
+impl<T: Ord> Ord for Cell<T> {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.get_ref().cmp(other.get_ref())
+    }
+    // Other things to do
+    // Implement default members to refer to the getRef
+}
+
+use std::hash::Hash;
+impl<T: Hash> Hash for Cell<T> {
+    fn hash<H: ~const std::hash::Hasher>(&self, state: &mut H) {
+        self.get_ref().hash(state)
+    }
+}
+
+impl<T> Clone for Cell<T> {
+    /// Returns a new `Cell` instance with a shared reference to the same contained value.
     ///
-    /// The contents of the `JavaCell` can be modified through any of its clones, but each clone still owns a shared reference
+    /// The contents of the `Cell` can be modified through any of its clones, but each clone still owns a shared reference
     /// to the same value. When all clones are dropped, the value will be dropped as well.
     fn clone(&self) -> Self {
         Self {

@@ -1,4 +1,5 @@
 #![feature(negative_impls)]
+#![feature(const_trait_impl)]
 
 mod arc;
 mod rc;

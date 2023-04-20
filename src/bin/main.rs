@@ -1,11 +1,11 @@
-use speedy_refs::JavaCell;
+use speedy_refs::Cell;
 
 fn main() {
     #[derive(Debug, PartialEq, Eq)]
     struct Data(String, usize, bool, Vec<Self>);
     let data = Data(String::from("Hello, World"), 100, false, vec![]);
-    let mut cell = JavaCell::new(data);
-    let mut clone = JavaCell::clone(&cell);
+    let mut cell = Cell::new(data);
+    let mut clone = Cell::clone(&cell);
 
     cell.0.push('!');
     clone.1 += 55;

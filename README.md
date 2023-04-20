@@ -11,7 +11,7 @@ A collection of simple, Fast, and useful smart pointers for rust.
 - **Reon** - Read only static pointer that implements `Sync` and `Send`
 - **RcCell** - Simple and more concise version of `Rc<RefCell>`
 - **SharedCell** - For Shared ownership without borrow checking.
-- **JavaCell** - A cloneable pointer to a shared reference. Like how references are used in java environments
+- **Cell** - A cloneable shared reference without borrow checking. Like how references are used in java, go, python, etc.
 
 # Upcoming
 
@@ -68,24 +68,24 @@ fn main() {
 
 ```
 
-## JavaCell
+## Cell
 
 ```
-use speedy_refs::JavaCell;
+use speedy_refs::Cell;
 
 fn main() {
     #[derive(Debug, PartialEq, Eq)]
     struct Data(String, usize, bool, Vec<Self>);
     let data = Data(String::from("Hello, World"), 100, false, vec![]);
-    let mut cell = JavaCell::new(data);
-    let mut clone = JavaCell::clone(&cell);
+    let mut cell = Cell::new(data);
+    let mut clone = Cell::clone(&cell);
 
     cell.0.push('!');
     clone.1 += 55;
     cell.2 = true;
     clone.3.push(Data("".into(), 0, false, Vec::new()));
 
-    // Debug for JavaCell is same as that for Data
+    // Debug for Cell is same as that for Data
     println!("{:?}", clone);
     // Output
     //Data("Hello, World!", 155, true, [Data("", 0, false, [])])
