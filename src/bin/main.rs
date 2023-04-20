@@ -1,79 +1,26 @@
-use bench::*;
-pub const LEN: usize = 100000;
-const TIMES: usize = 30000;
+use speedy_refs::JavaCell;
 
 fn main() {
-    start()
-}
+    #[derive(Debug, PartialEq, Eq)]
+    struct Data(String, usize, bool, Vec<Self>);
+    let data = Data(String::from("Hello, World"), 100, false, vec![]);
+    let mut cell = JavaCell::new(data);
+    let mut clone = JavaCell::clone(&cell);
 
-fn clone<R: Clone>(value: R) {
-    for _ in 0..TIMES {
-        let temp = value.clone();
-        for _ in 0..TIMES {
-            let _ = temp.clone();
-        }
-    }
-}
+    cell.0.push('!');
+    clone.1 += 55;
+    cell.2 = true;
+    clone.3.push(Data("".into(), 0, false, Vec::new()));
 
-pub fn mine() {
-    let rc = speedy_refs::RefCell::new(1);
+    // Debug for JavaCell is same as that for Data
+    println!("{:?}", clone);
+    // Output
+    //Data("Hello, World!", 155, true, [Data("", 0, false, [])])
+    println!("{:?}", cell);
+    // Output
+    //Data("Hello, World!", 155, true, [Data("", 0, false, [])])
+    
 
-    for i in 0..LEN {
-        if i & 1 == 0 {
-            rc.borrow_mut();
-        } else {
-            rc.borrow();
-        }
-    }
-}
-
-pub fn std() {
-    let rc = std::cell::RefCell::new(1);
-    for i in 0..LEN {
-        if i & 1 == 0 {
-            rc.borrow_mut();
-        } else {
-            rc.borrow();
-        }
-    }
-}
-
-pub fn start() {
-    let bcher = MyBencher::new(2);
-    // println!("Refcells Bench");
-    // bcher.bench("MY-REFCELL", || mine());
-    // bcher.bench("STD-REFCELL", || std());
-    println!("\nRcs Bench");
-    let mine = speedy_refs::Rc::new(String::from("Hello, World!"));
-    let std = std::rc::Rc::new(String::from("Hello, World!"));
-    bcher.bench("MY-RC", || clone(mine.clone()));
-    bcher.bench("STD-RC", || clone(std.clone()));
-}
-
-mod bench {
-    pub struct MyBencher(usize);
-
-    impl MyBencher {
-        pub fn new(size: usize) -> Self {
-            Self(size)
-        }
-        pub fn bench(&self, alias: &str, f: impl Fn()) {
-            let r1 = self.measure(&f);
-            let r2 = self.measure(&f);
-            let r3 = self.measure(&f);
-
-            println!("Results for {}\n[{}ns, {}ns, {}ns]\n", alias, r1, r2, r3);
-        }
-        fn measure(&self, f: &impl Fn()) -> u128 {
-            let clock = std::time::Instant::now();
-            self.call(f);
-            clock.elapsed().as_nanos()
-        }
-        #[inline]
-        fn call(&self, f: impl Fn()) {
-            for _ in 0..self.0 {
-                f()
-            }
-        }
-    }
+    assert_eq!(*cell, Data(String::from("Hello, World!"), 155, true, vec![Data("".into(), 0, false, vec![])]));
+    assert_eq!(*clone, Data(String::from("Hello, World!"), 155, true, vec![Data("".into(), 0, false, vec![])]));
 }

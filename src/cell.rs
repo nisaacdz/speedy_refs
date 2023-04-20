@@ -1,14 +1,11 @@
-use std::cell::UnsafeCell;
-
-/// # HeapCell
+// # speedy_refs::HeapCell
 ///
 /// `HeapCell` is a container type that allows mutation of its contents even when it is
 /// externally immutable by storing the type it points to on the heap and keeping a mutable pointer to it.
 ///
 /// Functions like `NonNull` + `UnsafeCell`
 ///
-/// # Like UnsafeCell
-/// It is similar to `UnsafeCell` in terms of functionality but provides the following differences:
+/// # Note
 /// - It moves the data onto the heap and stores a pointer to it.
 /// - It never drops or deallocates the data it wraps until `drop()` and `dealloc()` methods are explicitly called or `drop_n_dealloc()` is called.
 ///
@@ -43,7 +40,6 @@ pub struct HeapCell<T> {
 }
 
 impl<T> Clone for HeapCell<T> {
-    #[inline(always)]
     fn clone(&self) -> Self {
         Self {
             inner: self.inner.clone(),
@@ -80,7 +76,7 @@ impl<T> HeapCell<T> {
     /// It is the responsibility of the caller to
     /// ensure that this method is not invoked while there is an outstanding
     /// **mutable** or **immutable** reference this same T, as that would lead to data races.
-    #[inline]
+    ///
     pub unsafe fn as_mut(&self) -> &mut T {
         &mut *self.inner
     }
@@ -95,7 +91,6 @@ impl<T> HeapCell<T> {
     /// It is the responsibility of the caller to
     /// ensure that this method is not invoked while there is an outstanding
     /// **mutable** reference this same T, as that would lead to data races.
-    #[inline]
     pub unsafe fn as_ref(&self) -> &T {
         &*self.inner
     }
@@ -389,7 +384,7 @@ impl<T> RefCell<T> {
     /// ```
     pub fn new(val: T) -> Self {
         Self {
-            inner: UnsafeCell::new(Inner::new(val)),
+            inner: std::cell::UnsafeCell::new(Inner::new(val)),
         }
     }
 
@@ -523,6 +518,7 @@ impl<T> Inner<T> {
 
 unsafe impl<T: Send> Send for RefCell<T> {}
 
+/// # speedy_refs::RcCell
 /// A reference-counted cell that allows for interior mutability.
 ///
 /// This struct is essentially a zero-cost abstraction over using `std::rc::Rc<std::cell::RefCell<T>>`,
@@ -572,5 +568,141 @@ impl<T> std::ops::Deref for RcCell<T> {
     /// Dereferences the `RcCell<T>` instance to the underlying `RefCell<T>`.
     fn deref(&self) -> &Self::Target {
         std::ops::Deref::deref(&self.inner)
+    }
+}
+
+/// Freely share multiple mutable references within a single thread.
+///
+///
+/// A smart pointer that provides shared ownership of its contained value `T` in a single-threaded environment.
+///
+/// This struct uses an `UnsafeCell` internally to allow for interior mutability, which means that the value can be mutated
+/// even if there are multiple references to it. However, it is not safe for concurrent access from multiple threads.
+/// 
+/// # Examples
+/// ```
+/// use speedy_refs::SharedCell;
+/// // Create a new SharedCell with the initial value 42.
+/// let cell = SharedCell::new(42);
+/// // Get a shared reference to the contained value.
+/// let value_ref = unsafe { cell.as_ref() };
+/// assert_eq!(*value_ref, 42);
+/// // Get a mutable reference to the contained value.
+/// let value_mut_ref = unsafe { cell.as_mut() };
+/// *value_mut_ref = 10;
+/// assert_eq!(*value_ref, 10);
+/// ```
+pub struct SharedCell<T> {
+    value: std::cell::UnsafeCell<T>,
+}
+
+impl<T> SharedCell<T> {
+    /// Creates a new `SharedCell` instance with the specified initial value.
+    pub fn new(value: T) -> SharedCell<T> {
+        Self {
+            value: std::cell::UnsafeCell::new(value),
+        }
+    }
+
+    /// Returns a mutable reference to the contained value.
+    ///
+    /// This method uses the `UnsafeCell` internally to allow for mutable access without violating Rust's borrowing rules.
+    /// However, it is marked as unsafe because it allows for multiple mutable references to the same value, which can lead
+    /// to data races if not used correctly.
+    pub unsafe fn as_mut(&self) -> &mut T {
+        &mut *self.value.get()
+    }
+
+    /// Returns a shared reference to the contained value.
+    ///
+    /// This method uses the `UnsafeCell` internally to allow for shared access without violating Rust's borrowing rules.
+    /// However, it is marked as unsafe for the same reason as `as_mut`.
+    pub unsafe fn as_ref(&self) -> &T {
+        &*self.value.get()
+    }
+}
+
+// We mark `SharedCell` as not `Sync` because it is not safe for concurrent access from multiple threads.
+impl<T> !Sync for SharedCell<T> {}
+
+// We mark `SharedCell` as `Send` if the contained type `T` is also `Send`.
+unsafe impl<T: Send> Send for SharedCell<T> {}
+
+/// # JavaCell
+/// A smart pointer that provides shared ownership of its contained value `T` with interior mutability.
+///
+/// This struct is implemented using an `std::rc::Rc` and a `speedy_refs::SharedCell` to provide shared ownership and interior mutability,
+/// respectively. It behaves similarly to a `Cell` in that its contents can be modified through a shared reference.
+///
+/// # Note
+/// Does not provide runtime borrow checking. If you want runtime borrow checking use `RcCell` instead.
+/// 
+/// # Examples
+///
+/// ```
+/// use speedy_refs::JavaCell;
+///
+/// let mut items: JavaCell<Vec<String>> = JavaCell::new(vec!["Hello".into(), ",".into(), " ".into(), "World".into(), "!".into()]);
+///
+/// let clone = items.clone();
+///
+/// // Modify the contents of the original JavaCell.
+/// items.pop();
+///
+/// // Collect shared references to the remaining items.
+/// let mut refs = items.iter().collect::<Vec<&String>>();
+///
+/// assert_eq!(clone.len(), 4);
+/// ```
+pub struct JavaCell<T> {
+    value: std::rc::Rc<SharedCell<T>>,
+}
+
+impl<T: std::fmt::Debug> std::fmt::Debug for JavaCell<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Debug::fmt(unsafe { self.value.as_ref().as_ref() }, f)
+    }
+}
+
+impl<T> JavaCell<T> {
+    /// Creates a new `JavaCell` instance with the specified initial value.
+    pub fn new(value: T) -> JavaCell<T> {
+        Self {
+            value: std::rc::Rc::new(SharedCell::new(value)),
+        }
+    }
+}
+
+impl<T> std::ops::Deref for JavaCell<T> {
+    type Target = T;
+
+    /// Returns a shared reference to the contained value.
+    ///
+    /// This method uses the `UnsafeCell` internally to allow for shared access without violating Rust's borrowing rules.
+    /// However, it is marked as unsafe for the same reason as `SharedCell::as_ref`.
+    fn deref(&self) -> &Self::Target {
+        unsafe { self.value.as_ref().as_ref() }
+    }
+}
+
+impl<T> std::ops::DerefMut for JavaCell<T> {
+    /// Returns a mutable reference to the contained value.
+    ///
+    /// This method uses the `UnsafeCell` internally to allow for mutable access without violating Rust's borrowing rules.
+    /// However, it is marked as unsafe for the same reason as `SharedCell::as_mut`.
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        unsafe { self.value.as_ref().as_mut() }
+    }
+}
+
+impl<T> Clone for JavaCell<T> {
+    /// Returns a new `JavaCell` instance with a shared reference to the same contained value.
+    ///
+    /// The contents of the `JavaCell` can be modified through any of its clones, but each clone still owns a shared reference
+    /// to the same value. When all clones are dropped, the value will be dropped as well.
+    fn clone(&self) -> Self {
+        Self {
+            value: self.value.clone(),
+        }
     }
 }

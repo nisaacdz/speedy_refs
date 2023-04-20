@@ -1,4 +1,4 @@
-/// # Rc
+/// # speedy_refs::Rc
 /// `Rc<T>` is a reference-counted pointer type that allows multiple shared references
 /// to a value of type `T`. It tracks the number of references and automatically deallocates
 /// the value when the last reference is dropped.
