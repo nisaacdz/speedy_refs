@@ -32,7 +32,7 @@ cargo add speedy_refs
 
 ```
 [dependencies]
-speedy_refs = "0.2.4"
+speedy_refs = "0.2.5"
 ```
 
 # Example
