@@ -3,6 +3,10 @@ use speedy_refs::Cell;
 fn main() {
     #[derive(Debug, PartialEq, Eq)]
     struct Data(String, usize, bool, Vec<Self>);
+
+    fn take_data(_data: &Data) {
+        // do something
+    }
     let data = Data(String::from("Hello, World"), 100, false, vec![]);
     let mut cell = Cell::new(data);
     let mut clone = Cell::clone(&cell);
@@ -23,4 +27,6 @@ fn main() {
 
     assert_eq!(*cell, Data(String::from("Hello, World!"), 155, true, vec![Data("".into(), 0, false, vec![])]));
     assert_eq!(*clone, Data(String::from("Hello, World!"), 155, true, vec![Data("".into(), 0, false, vec![])]));
+
+    take_data(&cell);
 }

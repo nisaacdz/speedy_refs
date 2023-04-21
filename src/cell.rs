@@ -609,6 +609,26 @@ impl<T> SharedCell<T> {
     /// This method uses the `UnsafeCell` internally to allow for mutable access without violating Rust's borrowing rules.
     /// However, it is marked as unsafe because it allows for multiple mutable references to the same value, which can lead
     /// to data races if not used correctly.
+    ///  
+    /// # Examples
+    /// ```
+    /// use speedy_refs::SharedCell;
+    /// #[derive(Default)]
+    /// struct Person {
+    ///     name: String,
+    ///     age: u32,
+    /// }
+    /// 
+    /// let person = SharedCell::new(Person::default());
+    /// 
+    /// unsafe {
+    ///     person.get_mut().name = String::from("Dennis");
+    ///     person.get_mut().age = 56;
+    /// }
+    /// assert_eq!(unsafe { person.get_ref().age }, 56);
+    /// assert_eq!(unsafe { &person.get_ref().name }, &String::from("Dennis"));
+    /// 
+    /// ```
     pub unsafe fn get_mut(&self) -> &mut T {
         &mut *self.value.get()
     }
@@ -617,6 +637,22 @@ impl<T> SharedCell<T> {
     ///
     /// This method uses the `UnsafeCell` internally to allow for shared access without violating Rust's borrowing rules.
     /// However, it is marked as unsafe for the same reason as `get_mut`.
+    /// 
+    /// # Examples
+    /// ```
+    /// use speedy_refs::SharedCell;
+    /// #[derive(Default)]
+    /// struct Person {
+    ///     name: String,
+    ///     age: u32,
+    /// }
+    /// 
+    /// let person = SharedCell::new(Person::default());
+    /// assert_eq!(unsafe { person.get_ref().age }, u32::default());
+    /// assert_eq!(unsafe { &person.get_ref().name }, &String::default());
+    /// 
+    /// ```
+    #[inline(always)]
     pub unsafe fn get_ref(&self) -> &T {
         &*self.value.get()
     }
@@ -628,7 +664,7 @@ impl<T> !Sync for SharedCell<T> {}
 // We mark `SharedCell` as `Send` if the contained type `T` is also `Send`.
 unsafe impl<T: Send> Send for SharedCell<T> {}
 
-/// # Cell
+/// # speedy_refs::Cell
 /// A smart pointer that provides shared ownership of its contained value `T` with interior mutability.
 ///
 /// This struct is implemented using an `std::rc::Rc` and a `speedy_refs::SharedCell` to provide shared ownership and interior mutability,
@@ -659,11 +695,17 @@ pub struct Cell<T> {
 }
 
 
-use std::fmt::{Debug, Result, Formatter};
+use std::fmt::{Debug, Display, Result, Formatter};
 
 impl<T: Debug> Debug for Cell<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         Debug::fmt(self.get_ref(), f)
+    }
+}
+
+impl<T: Display> Display for Cell<T> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        Display::fmt(self.get_ref(), f)
     }
 }
 
@@ -779,3 +821,12 @@ impl<T> Clone for Cell<T> {
         }
     }
 }
+
+impl<T> From<T> for Cell<T> {
+    fn from(value: T) -> Self {
+        Cell::new(value)
+    }
+}
+
+impl<T> !Send for Cell<T> {}
+impl<T> !Sync for Cell<T> {}
