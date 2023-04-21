@@ -53,17 +53,17 @@
 
 /// ```
 #[derive(Copy)]
-pub struct Reon<T: 'static> {
+pub struct Reon<T: 'static + Sync> {
     inner: &'static T,
 }
 
-impl<T> Clone for Reon<T> {
+impl<T: 'static + Sync> Clone for Reon<T> {
     fn clone(&self) -> Self {
         Self { inner: self.inner }
     }
 }
 
-impl<T> std::ops::Deref for Reon<T> {
+impl<T: 'static + Sync> std::ops::Deref for Reon<T> {
     type Target = T;
     #[inline]
     fn deref(&self) -> &Self::Target {
@@ -71,13 +71,13 @@ impl<T> std::ops::Deref for Reon<T> {
     }
 }
 
-impl<T> AsRef<T> for Reon<T> {
+impl<T: 'static + Sync> AsRef<T> for Reon<T> {
     fn as_ref(&self) -> &T {
         std::ops::Deref::deref(self)
     }
 }
 
-impl<T> Reon<T> {
+impl<T: 'static + Sync> Reon<T> {
     /// Constructs a new `Reon<T>` from a given value.
     ///
     /// # Examples
@@ -94,5 +94,5 @@ impl<T> Reon<T> {
     }
 }
 
-unsafe impl<T> Send for Reon<T> {}
-unsafe impl<T> Sync for Reon<T> {}
+unsafe impl<T: 'static + Sync> Send for Reon<T> {}
+unsafe impl<T: 'static + Sync> Sync for Reon<T> {}

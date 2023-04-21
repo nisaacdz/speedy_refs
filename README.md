@@ -11,7 +11,7 @@ A collection of simple, Fast, and useful smart pointers for rust.
 - **Reon** - Read only static pointer that implements `Sync` and `Send`
 - **RcCell** - Simple and more concise version of `Rc<RefCell>`
 - **SharedCell** - For Shared ownership without borrow checking.
-- **Cell** - A cloneable shared reference without borrow checking. Like how references are used in java, go, python, etc.
+- **Cell** - A cloneable shared ownership without borrow checking. Like how references are used in java, go, python, etc.(Not Sync)
 
 # Upcoming
 

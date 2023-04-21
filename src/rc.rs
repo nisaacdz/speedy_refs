@@ -167,4 +167,9 @@ mod test {
         let _v = rc.clone();
         let _v = rc.clone();
     }
+
+    #[test]
+    fn test_1() {
+        assert_eq!(1, 1)
+    }
 }
