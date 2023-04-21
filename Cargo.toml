@@ -1,6 +1,7 @@
 [package]
 name = "speedy_refs"
-version = "0.2.5"
+authors = ["Isaac Newton Dzikum<nisaacdz@gmail.com>"]
+version = "0.2.6"
 description = "A collection of simple and fast and useful smart pointers."
 edition = "2021"
 license = "MIT"
