@@ -662,193 +662,11 @@ impl<T> !Sync for SharedCell<T> {}
 // We mark `SharedCell` as `Send` if the contained type `T` is also `Send`.
 unsafe impl<T: Send> Send for SharedCell<T> {}
 
-/// # Cell
-/// A smart pointer that provides shared ownership of its contained value `T` with interior mutability.
-///
-/// This struct is implemented using an `std::rc::Rc` and a `speedy_refs::SharedCell` to provide shared ownership and interior mutability,
-/// respectively. It behaves similarly to a `Cell` in that its contents can be modified through a shared reference.
-///
-/// # Note
-/// Does not provide runtime borrow checking. If you want runtime borrow checking use `RcCell` instead.
-///
-/// # Examples
-///
-/// ```
-/// use speedy_refs::Cell;
-///
-/// let mut items: Cell<Vec<String>> = Cell::new(vec!["Hello".into(), ",".into(), " ".into(), "World".into(), "!".into()]);
-///
-/// let clone = items.clone();
-///
-/// // Modify the contents of the original Cell.
-/// items.pop();
-///
-/// // Collect shared references to the remaining items.
-/// let mut refs = items.iter().collect::<Vec<&String>>();
-///
-/// assert_eq!(clone.len(), 4);
-/// ```
-pub struct Cell<T> {
-    value: std::rc::Rc<SharedCell<T>>,
-}
-
-pub(crate) use std::fmt::{Debug, Display, Formatter, Result};
-
-impl<T: Debug> Debug for Cell<T> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-        Debug::fmt(self.get_ref(), f)
-    }
-}
-
-impl<T: Default> Default for Cell<T> {
-    fn default() -> Self {
-        Cell::new(T::default())
-    }
-}
-
-impl<T: Display> Display for Cell<T> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-        Display::fmt(self.get_ref(), f)
-    }
-}
-
-impl<T> AsRef<T> for Cell<T> {
-    fn as_ref(&self) -> &T {
-        self.get_ref()
-    }
-}
-
-impl<T> AsMut<T> for Cell<T> {
-    fn as_mut(&mut self) -> &mut T {
-        self.get_mut()
-    }
-}
-
-pub(crate) use std::ops::{Deref, DerefMut};
-
-impl<T> Deref for Cell<T> {
-    type Target = T;
-
-    /// Returns a shared reference to the contained value.
-    ///
-    /// This method uses the `UnsafeCell` internally to allow for shared access without violating Rust's borrowing rules.
-    /// However, it is marked as unsafe for the same reason as `SharedCell::as_ref`.
-    fn deref(&self) -> &Self::Target {
-        self.get_ref()
-    }
-}
-
-impl<T> DerefMut for Cell<T> {
-    /// Returns a mutable reference to the contained value.
-    ///
-    /// This method uses the `UnsafeCell` internally to allow for mutable access without violating Rust's borrowing rules.
-    /// However, it is marked as unsafe for the same reason as `SharedCell::as_mut`.
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.get_mut()
-    }
-}
-
-impl<T> Cell<T> {
-    /// Creates a new `Cell` instance with the specified initial value.
-    pub fn new(value: T) -> Cell<T> {
-        Self {
-            value: std::rc::Rc::new(SharedCell::new(value)),
-        }
-    }
-
-    pub(crate) fn get_ref(&self) -> &T {
-        unsafe { self.value.get_ref() }
-    }
-
-    pub(crate) fn get_mut(&self) -> &mut T {
-        unsafe { self.value.get_mut() }
-    }
-}
-
-impl<T: PartialEq> PartialEq for Cell<T> {
-    fn eq(&self, other: &Self) -> bool {
-        PartialEq::eq(self.get_ref(), other.get_ref())
-    }
-    fn ne(&self, other: &Self) -> bool {
-        PartialEq::ne(self.get_ref(), other.get_ref())
-    }
-}
-
-impl<T: Eq> Eq for Cell<T> {}
-
-impl<T: PartialOrd> PartialOrd for Cell<T> {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.get_ref().partial_cmp(other.get_ref())
-    }
-
-    fn lt(&self, other: &Self) -> bool {
-        self.get_ref().lt(other.get_ref())
-    }
-
-    fn le(&self, other: &Self) -> bool {
-        self.get_ref().le(other.get_ref())
-    }
-
-    fn gt(&self, other: &Self) -> bool {
-        self.get_ref().gt(other.get_ref())
-    }
-
-    fn ge(&self, other: &Self) -> bool {
-        self.get_ref().ge(other.get_ref())
-    }
-}
-
-impl<T: Ord> Ord for Cell<T> {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.get_ref().cmp(other.get_ref())
-    }
-    // Other things to do
-    // Implement default members to refer to the getRef
-}
-
-pub(crate) use std::hash::{Hash, Hasher};
-impl<T: Hash> Hash for Cell<T> {
-    fn hash<'a, H: Hasher>(&'a self, state: &mut H) {
-        self.get_ref().hash(state)
-    }
-}
-
-impl<T> Clone for Cell<T> {
-    /// Returns a new `Cell` instance with a shared reference to the same contained value.
-    ///
-    /// The contents of the `Cell` can be modified through any of its clones, but each clone still owns a shared reference
-    /// to the same value. When all clones are dropped, the value will be dropped as well.
-    fn clone(&self) -> Self {
-        Self {
-            value: self.value.clone(),
-        }
-    }
-}
-
-impl<T> From<T> for Cell<T> {
-    fn from(value: T) -> Self {
-        Cell::new(value)
-    }
-}
-
-pub(crate) use serde::{Deserialize, Deserializer, Serialize, Serializer};
-
-impl<T: Serialize> Serialize for Cell<T> {
-    fn serialize<S: Serializer>(&self, sz: S) -> std::result::Result<S::Ok, S::Error> {
-        T::serialize(self.get_ref(), sz)
-    }
-}
-
-impl<'d, T: Deserialize<'d>> Deserialize<'d> for Cell<T> {
-    fn deserialize<D: Deserializer<'d>>(dz: D) -> std::result::Result<Self, D::Error> {
-        let value = T::deserialize(dz)?;
-        Ok(Cell::new(value))
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use serde::{Serialize, Deserialize};
+
+    use crate::Borrow;
 
     #[derive(Debug, Serialize, Deserialize, PartialEq)]
     struct Data {
@@ -868,25 +686,25 @@ mod tests {
     #[test]
     fn test_1() {
         let value = Data::new("Rust Weeklies", 98.1);
-        let cell = Cell::new(value);
-        println!("Old value: {:?}", cell);
-        let val = serde_json::to_string(&cell).unwrap();
+        let data = Borrow::new(value);
+        println!("Old value: {:?}", data);
+        let val = serde_json::to_string(&data).unwrap();
         println!("Serialized string = {}", val);
-        let obj = serde_json::from_str::<Cell<Data>>(&val).unwrap();
+        let obj = serde_json::from_str::<Borrow<Data>>(&val).unwrap();
 
         println!("New value: {:?}", obj);
-        assert_eq!(cell, obj)
+        assert_eq!(data, obj)
         // chatgpt says you can use {1,3,4}.min() in rust :)
     }
 
     #[test]
     fn test_2() {
-        let cell = Cell::new(vec![1, 2, 3]);
+        let vec = Borrow::new(vec![1, 2, 3]);
 
-        let clone = cell.clone();
+        let clone = vec.clone();
 
         // The clone also provides shared ownership and interior mutability of the same value.
-        let mut shared_ref_1 = cell.clone();
+        let mut shared_ref_1 = vec.clone();
         let mut shared_ref_2 = clone.clone();
 
         // Both shared references can be used to access the interior value.
@@ -909,8 +727,8 @@ mod tests {
             // do something
         }
         let data = Data(String::from("Hello, World"), 100, false, vec![]);
-        let mut cell = Cell::new(data);
-        let mut clone = Cell::clone(&cell);
+        let mut cell = Borrow::new(data);
+        let mut clone = Borrow::clone(&cell);
 
         cell.0.push('!');
         clone.1 += 55;
@@ -947,6 +765,3 @@ mod tests {
         take_data(&cell);
     }
 }
-
-impl<T> !Send for Cell<T> {}
-impl<T> !Sync for Cell<T> {}
