@@ -33,10 +33,8 @@
 //! For Shared ownership without borrow checking.
 //!
 //! 
-//! - **Cell**:
-//! A shared ownership reference type that simulates how references are used in languages like
-//! go, python, java, etc. Get multiple mutable references simultaneously without borrow checking (!Sync).
-//! Cloning the reference only clones the interior value.
+//! - **Borrow**:
+//! A cloneable shared ownership without borrow checking. Like how references are used in languages like java, go, python, etc.
 
 mod arc;
 mod rc;
@@ -51,3 +49,6 @@ pub use rc::*;
 pub use reon::*;
 pub use cell::*;
 pub use borrow::*;
+
+#[cfg(test)]
+mod test;

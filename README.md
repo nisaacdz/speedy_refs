@@ -11,7 +11,7 @@ A collection of simple, Fast, and useful smart pointers for rust.
 - **Reon** - Read only static pointer that implements `Sync` and `Send`
 - **RcCell** - Simple and more concise version of `Rc<RefCell>`
 - **SharedCell** - For Shared ownership without borrow checking.
-- **Borrow** - A cloneable shared ownership without borrow checking. Like how references are used in java, go, python, etc.(Not Sync)
+- **Borrow** - A cloneable shared ownership without borrow checking. Like how references are used in languages like java, go, python, etc.
 
 # Upcoming
 
@@ -68,35 +68,62 @@ fn main() {
 
 ```
 
-## Cell
+## Borrow
 
 ```
-use speedy_refs::Cell;
+use speedy_refs::Borrow;
+
+#[derive(Debug, PartialEq, Eq)]
+struct Data(String, usize, bool, Vec<Self>);
 
 fn main() {
-    #[derive(Debug, PartialEq, Eq)]
-    struct Data(String, usize, bool, Vec<Self>);
+    // Create a new variable
     let data = Data(String::from("Hello, World"), 100, false, vec![]);
-    let mut cell = Cell::new(data);
-    let mut clone = Cell::clone(&cell);
-
-    cell.0.push('!');
+    // Create a Borrow (a reference) with the variable
+    let mut data_ref = Borrow::new(data);
+    // Create another reference to the same variable
+    let mut clone = Borrow::clone(&data_ref);
+    // Use the Borrow seemlessly
+    data_ref.0.push('!');
     clone.1 += 55;
-    cell.2 = true;
+    data_ref.2 = true;
     clone.3.push(Data("".into(), 0, false, Vec::new()));
 
-    // Debug for Cell is same as that for Data
+    // Debug for JavaCell is same as that for Data
     println!("{:?}", clone);
     // Output
     //Data("Hello, World!", 155, true, [Data("", 0, false, [])])
-    println!("{:?}", cell);
+    println!("{:?}", data_ref);
     // Output
     //Data("Hello, World!", 155, true, [Data("", 0, false, [])])
 
-
-    assert_eq!(*cell, Data(String::from("Hello, World!"), 155, true, vec![Data("".into(), 0, false, vec![])]));
-    assert_eq!(*clone, Data(String::from("Hello, World!"), 155, true, vec![Data("".into(), 0, false, vec![])]));
+    assert_eq!(
+        *data_ref,
+        Data(
+            String::from("Hello, World!"),
+            155,
+            true,
+            vec![Data("".into(), 0, false, vec![])]
+        )
+    );
+    assert_eq!(
+        *clone,
+        Data(
+            String::from("Hello, World!"),
+            155,
+            true,
+            vec![Data("".into(), 0, false, vec![])]
+        )
+    );
+    // Borrow implements AsRef and Deref of T
+    print(&data_ref);
 }
+
+fn print<T: std::fmt::Debug>(data: &T) {
+    // do something
+    println!("{:?}", data);
+}
+
 ```
 
 # LICENSE

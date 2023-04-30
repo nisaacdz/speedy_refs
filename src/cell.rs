@@ -1,17 +1,15 @@
-// # speedy_refs::HeapCell
-///
-/// `HeapCell` is Heap allocated type pointer.
+/// A `HeapCell` is Heap allocated type pointer.
 /// Functions like `NonNull` + `UnsafeCell`
 ///
-/// # Note
+/// ## Note
 /// - It moves the data onto the heap and stores a pointer to it.
 /// - It never drops or deallocates the data it wraps until `drop()` and `dealloc()` methods are explicitly called or `drop_n_dealloc()` is called.
 ///
-/// # Uses
+/// ## Uses
 /// `HeapCell` can be accessed mutably through the `as_mut` method and immutably through the
 /// `as_ref` method without requiring the container to be mutable.
 ///
-/// # Examples
+/// ## Examples
 ///
 /// ```
 /// use speedy_refs::HeapCell;
@@ -664,7 +662,7 @@ unsafe impl<T: Send> Send for SharedCell<T> {}
 
 #[cfg(test)]
 mod tests {
-    use serde::{Serialize, Deserialize};
+    use serde::{Deserialize, Serialize};
 
     use crate::Borrow;
 
@@ -722,29 +720,28 @@ mod tests {
     fn test_3() {
         #[derive(Debug, PartialEq, Eq)]
         struct Data(String, usize, bool, Vec<Self>);
-
-        fn take_data(_data: &Data) {
-            // do something
-        }
+        // Create a new variable
         let data = Data(String::from("Hello, World"), 100, false, vec![]);
-        let mut cell = Borrow::new(data);
-        let mut clone = Borrow::clone(&cell);
-
-        cell.0.push('!');
+        // Create a Borrow (a reference) with the variable
+        let mut data_ref = Borrow::new(data);
+        // Create another reference to the same variable
+        let mut clone = Borrow::clone(&data_ref);
+        // Use the Borrow seemlessly
+        data_ref.0.push('!');
         clone.1 += 55;
-        cell.2 = true;
+        data_ref.2 = true;
         clone.3.push(Data("".into(), 0, false, Vec::new()));
 
         // Debug for JavaCell is same as that for Data
         println!("{:?}", clone);
         // Output
         //Data("Hello, World!", 155, true, [Data("", 0, false, [])])
-        println!("{:?}", cell);
+        println!("{:?}", data_ref);
         // Output
         //Data("Hello, World!", 155, true, [Data("", 0, false, [])])
 
         assert_eq!(
-            *cell,
+            *data_ref,
             Data(
                 String::from("Hello, World!"),
                 155,
@@ -761,7 +758,11 @@ mod tests {
                 vec![Data("".into(), 0, false, vec![])]
             )
         );
+        // Borrow implements AsRef and Deref of T
+        do_something(&data_ref);
 
-        take_data(&cell);
+        fn do_something(_data: &Data) {
+            // do something
+        }
     }
 }

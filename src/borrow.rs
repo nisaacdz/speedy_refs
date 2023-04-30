@@ -1,7 +1,4 @@
-/// # Borrow
-/// A smart pointer that provides shared ownership of its contained value `T` with interior mutability.
-/// 
-/// A `Borrow` is a shared reference to `T` that may be used to modify `T`
+/// A `Borrow` is a shared reference to `T` that may be used to modify `T` without any borrow checking.
 ///
 /// This struct is implemented using an `std::rc::Rc` and a `speedy_refs::SharedCell` to provide shared ownership and interior mutability,
 /// respectively. It behaves similarly to a `Cell` in that its contents can be modified through a shared reference.
